@@ -1,0 +1,148 @@
+import javafx.animation.AnimationTimer;
+import javafx.application.Application;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.TextAlignment;
+import javafx.stage.Stage;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+public class egzample extends Application {
+
+    static final double SZEROKOSC = 480;
+    static final double WYSOKOSC = 640;
+
+    // Prosty prostokąt używany dla gracza i bloków
+    static class Prostokat {
+        double x, y, w, h, vy;
+
+        Prostokat(double x, double y, double w, double h, double vy) {
+            this.x = x; this.y = y; this.w = w; this.h = h; this.vy = vy;
+        }
+
+        boolean koliduje(Prostokat b) {
+            return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
+        }
+    }
+
+    private final Set<KeyCode> klawisze = new HashSet<>();
+    private final List<Prostokat> bloki = new ArrayList<>();
+    private final Random random = new Random();
+
+    private Prostokat gracz;
+    private double czas;
+    private double doNastepnego;
+    private boolean koniec;
+
+    private void nowaGra() {
+        gracz = new Prostokat(SZEROKOSC / 2 - 25, WYSOKOSC - 60, 50, 30, 0);
+        bloki.clear();
+        czas = 0;
+        doNastepnego = 0.5;
+        koniec = false;
+    }
+
+    private void update(double dt) {
+        if (koniec) return;
+        czas += dt;
+
+        // ruch gracza
+        double kierunek = 0;
+        if (klawisze.contains(KeyCode.LEFT) || klawisze.contains(KeyCode.A)) kierunek -= 1;
+        if (klawisze.contains(KeyCode.RIGHT) || klawisze.contains(KeyCode.D)) kierunek += 1;
+        gracz.x += kierunek * 350 * dt;
+        gracz.x = Math.max(0, Math.min(SZEROKOSC - gracz.w, gracz.x));
+
+        // tworzenie nowych bloków (coraz częściej i szybciej)
+        doNastepnego -= dt;
+        if (doNastepnego <= 0) {
+            double w = 30 + random.nextDouble() * 50;
+            double x = random.nextDouble() * (SZEROKOSC - w);
+            double vy = 150 + random.nextDouble() * 150 + czas * 5;
+            bloki.add(new Prostokat(x, -30, w, 30, vy));
+            doNastepnego = Math.max(0.25, 0.8 - czas * 0.01);
+        }
+
+        // ruch bloków i kolizje
+        for (Prostokat b : bloki) {
+            b.y += b.vy * dt;
+            if (b.koliduje(gracz)) koniec = true;
+        }
+        bloki.removeIf(b -> b.y > WYSOKOSC);
+    }
+
+    private void render(GraphicsContext gc) {
+        gc.setFill(Color.web("#181a20"));
+        gc.fillRect(0, 0, SZEROKOSC, WYSOKOSC);
+
+        gc.setFill(Color.DODGERBLUE);
+        gc.fillRect(gracz.x, gracz.y, gracz.w, gracz.h);
+
+        gc.setFill(Color.TOMATO);
+        for (Prostokat b : bloki) {
+            gc.fillRect(b.x, b.y, b.w, b.h);
+        }
+
+        gc.setFill(Color.WHITE);
+        gc.setFont(Font.font("Arial", 20));
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
+
+        if (koniec) {
+            gc.setFill(Color.color(0, 0, 0, 0.6));
+            gc.fillRect(0, 0, SZEROKOSC, WYSOKOSC);
+            gc.setFill(Color.WHITE);
+            gc.setTextAlign(TextAlignment.CENTER);
+            gc.setFont(Font.font("Arial", 40));
+            gc.fillText("KONIEC GRY", SZEROKOSC / 2, WYSOKOSC / 2 - 10);
+            gc.setFont(Font.font("Arial", 18));
+            gc.fillText("Naciśnij R, aby zagrać ponownie", SZEROKOSC / 2, WYSOKOSC / 2 + 25);
+        }
+    }
+
+    @Override
+    public void start(Stage stage) {
+        Canvas canvas = new Canvas(SZEROKOSC, WYSOKOSC);
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+        Scene scene = new Scene(new StackPane(canvas));
+
+        scene.setOnKeyPressed(e -> {
+            klawisze.add(e.getCode());
+            if (koniec && e.getCode() == KeyCode.R) nowaGra();
+        });
+        scene.setOnKeyReleased(e -> klawisze.remove(e.getCode()));
+
+        nowaGra();
+
+        new AnimationTimer() {
+            long poprzedni = 0;
+
+            @Override
+            public void handle(long teraz) {
+                if (poprzedni == 0) { poprzedni = teraz; return; }
+                double dt = Math.min((teraz - poprzedni) / 1_000_000_000.0, 0.05);
+                poprzedni = teraz;
+                update(dt);
+                render(gc);
+            }
+        }.start();
+
+        stage.setTitle("Unikaj bloków");
+        stage.setResizable(false);
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
