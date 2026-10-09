@@ -33,14 +33,34 @@ public class ESTG extends Application {
             return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
         }
     }
+
+    static class Bulets {
+        double x, y, w, h;
+        double vx, vy;
+        double dmg;
+
+        Bulets(double x, double y, double w, double h,
+               double vx, double vy, double dmg) {
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.vx = vx;
+            this.vy = vy;
+            this.dmg = dmg;
+        }
+    }
+
     private final Set<KeyCode> klawisze = new HashSet<>();
     private final List<Feldres> legion = new ArrayList<>();
+    private final List<Bulets> shot = new ArrayList<>();
     private final Random random = new Random();
 
     private Feldres gracz;
     private double czas;
     private double myszX;
     private double myszY;
+    private boolean myszStrzela = false;
     private double kameraX;
     private double kameraY;
     private double dashCzas = 0.15;
@@ -51,17 +71,76 @@ public class ESTG extends Application {
     private double dashY = 0;
     private boolean qPoprzednio = false;
     private boolean ePoprzednio = false;
+    private double czasDoStrzalu = 0;
+    private final double szybkostrzelnosc = 2;
+    private final double predkoscPocisku = 900;
+    private final double magCappacity = 14;
+    private double  ammo = magCappacity;
 
     private Image teksturaGracza =
             new Image(getClass().getResourceAsStream("/juggernaut_temu.png"));
     private Image tlo =
             new Image(getClass().getResourceAsStream("/kawalek_ziemi.png"));
+    private Image bullet =
+            new Image(getClass().getResourceAsStream("/pociskacz.png"));
 
     private void nowaGra() {
         gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 50, 0);
         legion.clear();
+        shot.clear();
         czas = 0;
+        czasDoStrzalu = 0;
         aktualizujKamere();
+    }
+
+    private void shooting(double dt) {
+        czasDoStrzalu -= dt;
+
+        double graczX = gracz.x + gracz.w / 2;
+        double graczY = gracz.y + gracz.h / 2;
+
+        double celX = myszX + kameraX;
+        double celY = myszY + kameraY;
+
+        double kat = Math.atan2(celY - graczY, celX - graczX);
+
+        // Tworzenie pocisków podczas trzymania spacji
+        if (myszStrzela && czasDoStrzalu <= 0 && ammo >0) {
+            double kierunekX = Math.cos(kat);
+            double kierunekY = Math.sin(kat);
+
+            double startX = graczX + kierunekX * 45;
+            double startY = graczY + kierunekY * 45;
+
+            shot.add(new Bulets(
+                    startX - 5,
+                    startY - 5,
+                    30,
+                    15,
+                    kierunekX * predkoscPocisku,
+                    kierunekY * predkoscPocisku,
+                    10
+            ));
+
+            czasDoStrzalu = szybkostrzelnosc;
+            ammo -= 1;
+        }
+
+        // Aktualizacja lotu pocisków
+        for (int i = shot.size() - 1; i >= 0; i--) {
+            Bulets b = shot.get(i);
+
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+
+            // Usuwanie pocisków daleko poza widocznym ekranem
+            if (b.x < kameraX - 200
+                    || b.x > kameraX + SZEROKOSC + 200
+                    || b.y < kameraY - 200
+                    || b.y > kameraY + WYSOKOSC + 200) {
+                shot.remove(i);
+            }
+        }
     }
 
     private void aktualizujKamere() {
@@ -142,12 +221,10 @@ public class ESTG extends Application {
             gracz.x += dashX * dashPredkosc * krok;
             gracz.y += dashY * dashPredkosc * krok;
             dashTimer -= krok;
-        } else {
-            gracz.x += ruchX * 350 * dt;
-            gracz.y += ruchY * 350 * dt;
         }
 
         aktualizujKamere();
+        shooting(dt);
     }
 
     private void render(GraphicsContext gc) {
@@ -194,6 +271,33 @@ public class ESTG extends Application {
 
         gc.restore();
 
+        for (Bulets b : shot) {
+            // Kąt lotu pocisku w stopniach
+            double katPocisku = Math.toDegrees(
+                    Math.atan2(b.vy, b.vx)
+            );
+
+            gc.save();
+
+            // Środek pocisku na ekranie
+            double cxPocisku = b.x - kameraX + b.w / 2;
+            double cyPocisku = b.y - kameraY + b.h / 2;
+
+            // Obrót tekstury wokół jej środka
+            gc.translate(cxPocisku, cyPocisku);
+            gc.rotate(katPocisku);
+
+            gc.drawImage(
+                    bullet,
+                    -b.w / 2,
+                    -b.h / 2,
+                    b.w,
+                    b.h
+            );
+
+            gc.restore();
+        }
+
         gc.setFill(Color.TOMATO);
         for (Feldres b : legion) {
             gc.fillRect(b.x, b.y, b.w, b.h);
@@ -203,6 +307,7 @@ public class ESTG extends Application {
         gc.setFont(Font.font("Arial", 20));
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
+        gc.fillText(String.format("Ammo: %.1f / %.1f" , ammo, magCappacity), SZEROKOSC - 200, 25);
     }
     @Override
     public void start(Stage stage) {
@@ -213,6 +318,18 @@ public class ESTG extends Application {
         scene.setOnMouseMoved(e -> {
             myszX = e.getX();
             myszY = e.getY();
+        });
+
+        scene.setOnMousePressed(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                myszStrzela = true;
+            }
+        });
+
+        scene.setOnMouseReleased(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                myszStrzela = false;
+            }
         });
 
         scene.setOnKeyPressed(e -> {
@@ -236,7 +353,7 @@ public class ESTG extends Application {
             }
         }.start();
 
-        stage.setTitle("pa tera rusza sie");
+        stage.setTitle("8ighty 6ix");
         stage.setResizable(false);
         stage.setScene(scene);
         stage.show();
