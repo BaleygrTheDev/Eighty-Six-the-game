@@ -57,9 +57,10 @@ public class ESTG extends Application {
     private final Random random = new Random();
 
     private Feldres gracz;
+    private Feldres fido;
     private double czas;
-    private double myszX;
-    private double myszY;
+    private double myszX = SZEROKOSC / 2;
+    private double myszY = WYSOKOSC / 2;
     private boolean myszStrzela = false;
     private double kameraX;
     private double kameraY;
@@ -73,50 +74,128 @@ public class ESTG extends Application {
     private boolean ePoprzednio = false;
     private double czasDoStrzalu = 0;
     private final double szybkostrzelnosc = 2;
-    private final double predkoscPocisku = 900;
+    private final double predkoscPocisku = 1200;
     private final double magCappacity = 14;
     private double  ammo = magCappacity;
+    private  final double wymiana = 5;
+    private double doWymiany = 0;
+    static final double playerSpeed = 350;
+    static final double fidoSpeed = 300;
+    static final double dashWait = 0.6;
+    static final double wygladzanieKamery = 20;
+    static final double marginX = 140;
+    static final double marginY = 100;
+    static final double MARTWA_X = 0;      // połowa szerokości pasa martwego (px od środka)
+    static final double ROZPETOSC_X = 500;   // ile px za strefą martwą gracz dojeżdża do pełnego wysunięcia
+    static final double MARTWA_Y = 0;        // pion: 0 = brak strefy martwej
+    static final double ROZPETOSC_Y = 250;
+
+    private double katGracza = 0;
+    private double celKameryX, celKameryY;
 
     private Image teksturaGracza =
-            new Image(getClass().getResourceAsStream("/juggernaut_temu.png"));
+            new Image(getClass().getResourceAsStream("/jugger walker.png"));
+    private Image teksturaFido =
+            new Image(getClass().getResourceAsStream("/fido walk.png"));
+    private double czasAnimacji = 0;
+    private double czasAnimacjiFido = 0;
+    private int klatka = 0;
+    private int klatkaFido = 0;
+    private final double czasKlatki = 0.12;
     private Image tlo =
             new Image(getClass().getResourceAsStream("/kawalek_ziemi.png"));
     private Image bullet =
-            new Image(getClass().getResourceAsStream("/pociskacz.png"));
+            new Image(getClass().getResourceAsStream("/HEAT bulet.png"));
 
     private void nowaGra() {
-        gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 50, 0);
+        gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 75, 0);
+        fido = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 300, 60, 50, 0);
         legion.clear();
         shot.clear();
         czas = 0;
         czasDoStrzalu = 0;
-        aktualizujKamere();
+        doWymiany = 0;
+        ammo = magCappacity;
+        dashCooldown = 0;
+        dashTimer = 0;
+        qPoprzednio = false;
+        ePoprzednio = false;
+        klatka = 0;
+        klatkaFido = 0;
+        kameraX = gracz.x + gracz.w / 2 - SZEROKOSC / 2;
+        kameraY = gracz.y + gracz.h / 2 - WYSOKOSC / 2;
+        for (int i = 0; i < 60; i++) aktualizujKamere(1.0 / 60);
+        aktualizujKatGracza();
+        aktualizujKamere(0);
+    }
+    private void fidoUpdate(double dt) {
+        double graczX = gracz.x + gracz.w / 2;
+        double graczy = gracz.y + gracz.h / 2;
+
+        double fidoX = fido.x + fido.w / 2;
+        double fidoy = fido.y + fido.h / 2;
+
+        double dx = graczX - fidoX;
+        double dy = graczy - fidoy;
+        double odleglosc = Math.sqrt(dx * dx + dy * dy);
+        if (odleglosc < 0.0001) return;
+
+        if (!fido.koliduje(gracz)) {
+            if (ammo == 0) {
+                fido.x += (dx / odleglosc) * fidoSpeed * dt;
+                fido.y += (dy / odleglosc) * fidoSpeed * dt;
+            } else if (odleglosc < 2000) {
+                fido.x -= (dx / odleglosc) * fidoSpeed * dt;
+                fido.y -= (dy / odleglosc) * fidoSpeed * dt;
+            } else {
+                fido.x += (dx / odleglosc) * fidoSpeed * dt;
+                fido.y += (dy / odleglosc) * fidoSpeed * dt;
+            }
+            czasAnimacjiFido += dt;
+
+            if (czasAnimacjiFido >= czasKlatki) {
+                klatkaFido = (klatkaFido + 1) % 4;
+                czasAnimacjiFido = 0;
+            }
+        }
+    }
+
+    private void aktualizujAnimacje(double dt, double dlugosc) {
+        boolean chodzi = (dlugosc > 0 && doWymiany <= 0);
+
+        if (chodzi) {
+            czasAnimacji += dt;
+
+            if (czasAnimacji >= czasKlatki) {
+                klatka = (klatka + 1) % 4;
+                czasAnimacji = 0;
+            }
+        } else {
+            klatka = 0;
+            czasAnimacji = 0;
+        }
     }
 
     private void shooting(double dt) {
         czasDoStrzalu -= dt;
+        if(czasDoStrzalu < 0) czasDoStrzalu = 0;
 
         double graczX = gracz.x + gracz.w / 2;
         double graczY = gracz.y + gracz.h / 2;
 
-        double celX = myszX + kameraX;
-        double celY = myszY + kameraY;
-
-        double kat = Math.atan2(celY - graczY, celX - graczX);
-
         // Tworzenie pocisków podczas trzymania spacji
         if (myszStrzela && czasDoStrzalu <= 0 && ammo >0) {
-            double kierunekX = Math.cos(kat);
-            double kierunekY = Math.sin(kat);
+            double kierunekX = Math.cos(katGracza);
+            double kierunekY = Math.sin(katGracza);
 
             double startX = graczX + kierunekX * 45;
             double startY = graczY + kierunekY * 45;
 
             shot.add(new Bulets(
                     startX - 5,
-                    startY - 5,
-                    30,
-                    15,
+                    startY - 2.5,
+                    10,
+                    5,
                     kierunekX * predkoscPocisku,
                     kierunekY * predkoscPocisku,
                     10
@@ -143,24 +222,56 @@ public class ESTG extends Application {
         }
     }
 
-    private void aktualizujKamere() {
+    private void aktualizujKamere(double dt) {
+        liczCelKamery();
+
+        double a = 1 - Math.exp(-wygladzanieKamery * dt);
+        kameraX += (celKameryX - kameraX) * a;
+        kameraY += (celKameryY - kameraY) * a;
+    }
+
+    private static double smooth(double t) {
+        t = Math.max(0, Math.min(1, t));
+        return t * t * (3 - 2 * t);
+    }
+
+    private void liczCelKamery() {
         double graczX = gracz.x + gracz.w / 2;
         double graczY = gracz.y + gracz.h / 2;
 
-        double kat = Math.atan2(
-                myszY - WYSOKOSC / 2,
-                myszX - SZEROKOSC / 2
-        );
+        // położenie kursora względem ŚRODKA EKRANU (nie zależy od kamery)
+        double dx = myszX - SZEROKOSC / 2;
+        double dy = myszY - WYSOKOSC / 2;
 
-        double przesuniecieX = Math.cos(kat) * SZEROKOSC * 0.25;
-        double przesuniecieY = Math.sin(kat) * WYSOKOSC * 0.25;
+        // siła wysunięcia: 0 w strefie martwej, rośnie płynnie do 1
+        double sx = smooth((Math.abs(dx) - MARTWA_X) / ROZPETOSC_X);
+        double sy = smooth((Math.abs(dy) - MARTWA_Y) / ROZPETOSC_Y);
 
-        kameraX = graczX - SZEROKOSC / 2 + przesuniecieX;
-        kameraY = graczY - WYSOKOSC / 2 + przesuniecieY;
+        double zasiegX = SZEROKOSC / 2 - marginX;
+        double zasiegY = WYSOKOSC / 2 - marginY;
+
+        // gracz stoi po przeciwnej stronie niż kursor
+        double docelowyEkranX = SZEROKOSC / 2 - Math.signum(dx) * zasiegX * sx;
+        double docelowyEkranY = WYSOKOSC / 2 - Math.signum(dy) * zasiegY * sy;
+
+        celKameryX = graczX - docelowyEkranX;
+        celKameryY = graczY - docelowyEkranY;
+    }
+
+    private void aktualizujKatGracza() {
+        double graczX = gracz.x + gracz.w / 2;
+        double graczY = gracz.y + gracz.h / 2;
+
+        double celX = myszX + kameraX;
+        double celY = myszY + kameraY;
+
+        katGracza = Math.atan2(celY - graczY, celX - graczX);
     }
 
     private void update(double dt) {
         czas += dt;
+
+        aktualizujKatGracza();
 
         // ruch gracza
         double kierunekX = 0;
@@ -171,18 +282,9 @@ public class ESTG extends Application {
         if (klawisze.contains(KeyCode.UP) || klawisze.contains(KeyCode.W)) kierunekY += 1;
         if (klawisze.contains(KeyCode.DOWN) || klawisze.contains(KeyCode.S)) kierunekY -= 1;
 
-        // Kąt w stronę kursora
-        double celX = myszX + kameraX;
-        double celY = myszY + kameraY;
-
-        double kat = Math.atan2(
-                celY - (gracz.y + gracz.h / 2),
-                celX - (gracz.x + gracz.w / 2)
-        );
-
         // Ruch względem obrotu gracza
-        double ruchX = Math.cos(kat) * kierunekY - Math.sin(kat) * kierunekX;
-        double ruchY = Math.sin(kat) * kierunekY + Math.cos(kat) * kierunekX;
+        double ruchX = Math.cos(katGracza) * kierunekY - Math.sin(katGracza) * kierunekX;
+        double ruchY = Math.sin(katGracza) * kierunekY + Math.cos(katGracza) * kierunekX;
 
         // Normalizacja ruchu po przekątnej
         double dlugosc = Math.sqrt(ruchX * ruchX + ruchY * ruchY);
@@ -190,9 +292,10 @@ public class ESTG extends Application {
             ruchX /= dlugosc;
             ruchY /= dlugosc;
         }
-
-        gracz.x += ruchX * 350 * dt;
-        gracz.y += ruchY * 350 * dt;
+        if (doWymiany <= 0) {
+            gracz.x += ruchX * playerSpeed * dt;
+            gracz.y += ruchY * playerSpeed * dt;
+        }
 
         dashCooldown = Math.max(0, dashCooldown - dt);
 
@@ -201,15 +304,15 @@ public class ESTG extends Application {
 
         if (dashCooldown == 0) {
             if (q && !qPoprzednio) {
-                dashX = Math.sin(kat);
-                dashY = -Math.cos(kat);
+                dashX = Math.sin(katGracza);
+                dashY = -Math.cos(katGracza);
                 dashTimer = dashCzas;
-                dashCooldown = 0.6;
+                dashCooldown = dashWait;
             } else if (e && !ePoprzednio) {
-                dashX = -Math.sin(kat);
-                dashY = Math.cos(kat);
+                dashX = -Math.sin(katGracza);
+                dashY = Math.cos(katGracza);
                 dashTimer = dashCzas;
-                dashCooldown = 0.6;
+                dashCooldown = dashWait;
             }
         }
 
@@ -223,50 +326,94 @@ public class ESTG extends Application {
             dashTimer -= krok;
         }
 
-        aktualizujKamere();
+        if (klawisze.contains(KeyCode.R) && gracz.koliduje(fido) && doWymiany <= 0){
+            doWymiany = wymiana;
+        }
+
+        if (doWymiany > 0) {
+            doWymiany -= dt;
+
+            if (doWymiany <= 0) {
+                doWymiany = 0;
+                ammo = magCappacity;
+            }
+        }
+
+        aktualizujKamere(dt);
+        aktualizujKatGracza();
         shooting(dt);
+        fidoUpdate(dt);
+        aktualizujAnimacje(dt, dlugosc);
+
     }
 
     private void render(GraphicsContext gc) {
-        gc.setFill(Color.web("#181a20"));
+        double camX = Math.round(kameraX);
+        double camY = Math.round(kameraY);
+
         double tileW = ROZMIAR_KAFELKA;
         double tileH = ROZMIAR_KAFELKA;
 
         // Pierwszy kafelek widoczny w lewym górnym rogu
-        double startX = Math.floor(kameraX / tileW) * tileW;
-        double startY = Math.floor(kameraY / tileH) * tileH;
+        double startX = Math.floor(camX / tileW) * tileW;
+        double startY = Math.floor(camY / tileH) * tileH;
 
         // Rysowanie kafelków na całym ekranie
-        for (double x = startX; x < kameraX + SZEROKOSC + tileW; x += tileW) {
-            for (double y = startY; y < kameraY + WYSOKOSC + tileH; y += tileH) {
+        for (double x = startX; x < camX + SZEROKOSC + tileW; x += tileW) {
+            for (double y = startY; y < camY + WYSOKOSC + tileH; y += tileH) {
                 gc.drawImage(
                         tlo,
-                        x - kameraX,
-                        y - kameraY,
+                        x - camX,
+                        y - camY,
                         tileW,
                         tileH
                 );
             }
         }
-        //gc.fillRect(0, 0, SZEROKOSC, WYSOKOSC);
 
-        gc.setFill(Color.DODGERBLUE);
-        double cx = gracz.x - kameraX + gracz.w / 2;
-        double cy = gracz.y - kameraY + gracz.h / 2;
+        double cx = gracz.x - camX + gracz.w / 2;
+        double cy = gracz.y - camY + gracz.h / 2;
 
-        double kat = Math.toDegrees(
-                Math.atan2(myszY - cy, myszX - cx)
-        );
+        double kat = Math.toDegrees(katGracza);
+
+        double szerokoscKlatki = teksturaGracza.getWidth() / 4;
+        double wysokoscKlatki = teksturaGracza.getHeight();
 
         gc.save();
         gc.translate(cx, cy);
         gc.rotate(kat);
+
         gc.drawImage(
                 teksturaGracza,
-                -gracz.w / 2,
-                -gracz.h / 2,
-                gracz.w,
-                gracz.h
+                klatka * szerokoscKlatki, 0,
+                szerokoscKlatki, wysokoscKlatki,
+                -gracz.w / 2, -gracz.h / 2,
+                gracz.w, gracz.h
+        );
+
+        gc.restore();
+
+        double dx = fido.x - camX + fido.w / 2;
+        double dy = fido.y - camY + fido.h / 2;
+
+        double fido_kat = Math.toDegrees(
+                Math.atan2(gracz.y + gracz.h / 2 - (fido.y + fido.h / 2),
+                        gracz.x + gracz.w / 2 - (fido.x + fido.w / 2))
+        );
+
+        double szerokoscFido = teksturaFido.getWidth() / 4;
+        double wysokoscFido = teksturaFido.getHeight();
+
+        gc.save();
+        gc.translate(dx, dy);
+        gc.rotate(fido_kat);
+
+        gc.drawImage(
+                teksturaFido,
+                klatkaFido * szerokoscFido, 0,
+                szerokoscFido, wysokoscFido,
+                -fido.w / 2, -fido.h / 2,
+                fido.w, fido.h
         );
 
         gc.restore();
@@ -280,8 +427,8 @@ public class ESTG extends Application {
             gc.save();
 
             // Środek pocisku na ekranie
-            double cxPocisku = b.x - kameraX + b.w / 2;
-            double cyPocisku = b.y - kameraY + b.h / 2;
+            double cxPocisku = b.x - camX + b.w / 2;
+            double cyPocisku = b.y - camY + b.h / 2;
 
             // Obrót tekstury wokół jej środka
             gc.translate(cxPocisku, cyPocisku);
@@ -300,7 +447,7 @@ public class ESTG extends Application {
 
         gc.setFill(Color.TOMATO);
         for (Feldres b : legion) {
-            gc.fillRect(b.x, b.y, b.w, b.h);
+            gc.fillRect(b.x - camX, b.y - camY, b.w, b.h);
         }
 
         gc.setFill(Color.WHITE);
@@ -308,6 +455,8 @@ public class ESTG extends Application {
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
         gc.fillText(String.format("Ammo: %.1f / %.1f" , ammo, magCappacity), SZEROKOSC - 200, 25);
+        gc.fillText(String.format("Przeładowanie: %.1f s", czasDoStrzalu), SZEROKOSC - 200, 75);
+        gc.fillText(String.format("Przeładowanie: %.1f s", doWymiany), SZEROKOSC - 200, 125);
     }
     @Override
     public void start(Stage stage) {
@@ -315,10 +464,8 @@ public class ESTG extends Application {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         Scene scene = new Scene(new StackPane(canvas));
 
-        scene.setOnMouseMoved(e -> {
-            myszX = e.getX();
-            myszY = e.getY();
-        });
+        scene.setOnMouseMoved(e -> { myszX = e.getX(); myszY = e.getY(); });
+        scene.setOnMouseDragged(e -> { myszX = e.getX(); myszY = e.getY(); });
 
         scene.setOnMousePressed(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
@@ -332,10 +479,7 @@ public class ESTG extends Application {
             }
         });
 
-        scene.setOnKeyPressed(e -> {
-            klawisze.add(e.getCode());
-            if (e.getCode() == KeyCode.R) nowaGra();
-        });
+        scene.setOnKeyPressed(e -> klawisze.add(e.getCode()));
         scene.setOnKeyReleased(e -> klawisze.remove(e.getCode()));
 
         nowaGra();
