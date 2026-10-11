@@ -13,7 +13,7 @@ public class Cam {
     private double x, y;
     private double targetX, targetY;
 
-    public Cam(double HEIGHT, double WIDTH){
+    public Cam(double WIDTH, double HEIGHT){
         this.HEIGHT = HEIGHT;
         this.WIDTH = WIDTH;
     }
@@ -25,7 +25,7 @@ public class Cam {
     public double renderY(){return Math.round(y);}
 
     public double worldX(double screenX){return screenX + x;}
-    public double worldY(double screenY){return screenY + x;}
+    public double worldY(double screenY){return screenY + y;}
 
     public boolean outside(double worldX, double worldY, double margin){
         return worldX < x - margin ||

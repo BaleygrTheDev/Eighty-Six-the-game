@@ -55,6 +55,7 @@ public class ESTG extends Application {
     private final List<Feldres> legion = new ArrayList<>();
     private final List<Bulets> shot = new ArrayList<>();
     private final Random random = new Random();
+    private final Cam cam = new Cam(SZEROKOSC, WYSOKOSC);
 
     private Feldres gracz;
     private Feldres fido;
@@ -62,8 +63,6 @@ public class ESTG extends Application {
     private double myszX = SZEROKOSC / 2;
     private double myszY = WYSOKOSC / 2;
     private boolean myszStrzela = false;
-    private double kameraX;
-    private double kameraY;
     private double dashCzas = 0.15;
     private double dashPredkosc = 1000;
     private double dashTimer = 0;
@@ -73,7 +72,7 @@ public class ESTG extends Application {
     private boolean qPoprzednio = false;
     private boolean ePoprzednio = false;
     private double czasDoStrzalu = 0;
-    private final double szybkostrzelnosc = 2;
+    private final double szybkostrzelnosc = .01;
     private final double predkoscPocisku = 1200;
     private final double magCappacity = 14;
     private double  ammo = magCappacity;
@@ -82,16 +81,8 @@ public class ESTG extends Application {
     static final double playerSpeed = 350;
     static final double fidoSpeed = 300;
     static final double dashWait = 0.6;
-    static final double wygladzanieKamery = 20;
-    static final double marginX = 140;
-    static final double marginY = 100;
-    static final double MARTWA_X = 0;      // połowa szerokości pasa martwego (px od środka)
-    static final double ROZPETOSC_X = 500;   // ile px za strefą martwą gracz dojeżdża do pełnego wysunięcia
-    static final double MARTWA_Y = 0;        // pion: 0 = brak strefy martwej
-    static final double ROZPETOSC_Y = 250;
 
     private double katGracza = 0;
-    private double celKameryX, celKameryY;
 
     private Image teksturaGracza =
             new Image(getClass().getResourceAsStream("/jugger walker.png"));
@@ -122,11 +113,8 @@ public class ESTG extends Application {
         ePoprzednio = false;
         klatka = 0;
         klatkaFido = 0;
-        kameraX = gracz.x + gracz.w / 2 - SZEROKOSC / 2;
-        kameraY = gracz.y + gracz.h / 2 - WYSOKOSC / 2;
-        for (int i = 0; i < 60; i++) aktualizujKamere(1.0 / 60);
+        cam.drag(gracz.x + gracz.w / 2, gracz.y + gracz.h / 2, myszX, myszY);
         aktualizujKatGracza();
-        aktualizujKamere(0);
     }
     private void fidoUpdate(double dt) {
         double graczX = gracz.x + gracz.w / 2;
@@ -157,6 +145,9 @@ public class ESTG extends Application {
                 klatkaFido = (klatkaFido + 1) % 4;
                 czasAnimacjiFido = 0;
             }
+        }else if(doWymiany <= 0 && ammo == 14){
+            fido.x -= (dx / odleglosc) * fidoSpeed * dt;
+            fido.y -= (dy / odleglosc) * fidoSpeed * dt;
         }
     }
 
@@ -213,57 +204,18 @@ public class ESTG extends Application {
             b.y += b.vy * dt;
 
             // Usuwanie pocisków daleko poza widocznym ekranem
-            if (b.x < kameraX - 200
-                    || b.x > kameraX + SZEROKOSC + 200
-                    || b.y < kameraY - 200
-                    || b.y > kameraY + WYSOKOSC + 200) {
+            if (cam.outside(b.x, b.y, 200)) {
                 shot.remove(i);
             }
         }
-    }
-
-    private void aktualizujKamere(double dt) {
-        liczCelKamery();
-
-        double a = 1 - Math.exp(-wygladzanieKamery * dt);
-        kameraX += (celKameryX - kameraX) * a;
-        kameraY += (celKameryY - kameraY) * a;
-    }
-
-    private static double smooth(double t) {
-        t = Math.max(0, Math.min(1, t));
-        return t * t * (3 - 2 * t);
-    }
-
-    private void liczCelKamery() {
-        double graczX = gracz.x + gracz.w / 2;
-        double graczY = gracz.y + gracz.h / 2;
-
-        // położenie kursora względem ŚRODKA EKRANU (nie zależy od kamery)
-        double dx = myszX - SZEROKOSC / 2;
-        double dy = myszY - WYSOKOSC / 2;
-
-        // siła wysunięcia: 0 w strefie martwej, rośnie płynnie do 1
-        double sx = smooth((Math.abs(dx) - MARTWA_X) / ROZPETOSC_X);
-        double sy = smooth((Math.abs(dy) - MARTWA_Y) / ROZPETOSC_Y);
-
-        double zasiegX = SZEROKOSC / 2 - marginX;
-        double zasiegY = WYSOKOSC / 2 - marginY;
-
-        // gracz stoi po przeciwnej stronie niż kursor
-        double docelowyEkranX = SZEROKOSC / 2 - Math.signum(dx) * zasiegX * sx;
-        double docelowyEkranY = WYSOKOSC / 2 - Math.signum(dy) * zasiegY * sy;
-
-        celKameryX = graczX - docelowyEkranX;
-        celKameryY = graczY - docelowyEkranY;
     }
 
     private void aktualizujKatGracza() {
         double graczX = gracz.x + gracz.w / 2;
         double graczY = gracz.y + gracz.h / 2;
 
-        double celX = myszX + kameraX;
-        double celY = myszY + kameraY;
+        double celX = cam.worldX(myszX);
+        double celY = cam.worldY(myszY);
 
         katGracza = Math.atan2(celY - graczY, celX - graczX);
     }
@@ -339,7 +291,7 @@ public class ESTG extends Application {
             }
         }
 
-        aktualizujKamere(dt);
+        cam.updateCam(gracz.x + gracz.w / 2, gracz.y + gracz.h / 2, myszX, myszY, dt);
         aktualizujKatGracza();
         shooting(dt);
         fidoUpdate(dt);
@@ -348,8 +300,8 @@ public class ESTG extends Application {
     }
 
     private void render(GraphicsContext gc) {
-        double camX = Math.round(kameraX);
-        double camY = Math.round(kameraY);
+        double camX = cam.renderX();
+        double camY = cam.renderY();
 
         double tileW = ROZMIAR_KAFELKA;
         double tileH = ROZMIAR_KAFELKA;
