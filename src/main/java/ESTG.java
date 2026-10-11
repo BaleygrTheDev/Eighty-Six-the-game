@@ -76,27 +76,32 @@ public class ESTG extends Application {
     private int  ammo = magCappacity;
     private  final double wymiana = 5;
     private double doWymiany = 0;
-    static final double playerSpeed = 350;
-    static final double fidoSpeed = 300;
+    static final double playerSpeed = 500;
+    static final double fidoSpeed = 450;
     static final double dashWait = 0.6;
-
+    private int seed;
+    static final int[] WAGI = {65, 20, 10, 5};
     private double katGracza = 0;
 
-    private Image crosshair =
-            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/jugger crosshair.png")));
-    private Image teksturaGracza =
-            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/jugger walker.png")));
-    private Image teksturaFido =
-            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/fido walk.png")));
+    private Image crosshair = load("/jugger crosshair.png");
+    private Image teksturaGracza = load("/jugger walker.png");
+    private Image teksturaFido = load("/fido walk.png");
     private double czasAnimacji = 0;
     private double czasAnimacjiFido = 0;
     private int klatka = 0;
     private int klatkaFido = 0;
     private final double czasKlatki = 0.12;
-    private Image tlo =
-            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/kawalek_ziemi.png")));
-    private Image bullet =
-            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/HEAT bulet.png")));
+    private Image bullet = load("/HEAT bulet.png");
+    private Image[] tiles = {
+            load("/tile1.png"),
+            load("/tile4.png"),
+            load("/tile3.png"),
+            load("/tile2.png")
+    };
+
+    private Image load(String file){
+        return(new Image(Objects.requireNonNull(getClass().getResourceAsStream(file))));
+    }
 
     private void nowaGra() {
         gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 75, 0);
@@ -113,9 +118,27 @@ public class ESTG extends Application {
         ePoprzednio = false;
         klatka = 0;
         klatkaFido = 0;
+        seed = random.nextInt();
         cam.drag(gracz.x + gracz.w / 2, gracz.y + gracz.h / 2, myszX, myszY);
         aktualizujKatGracza();
     }
+
+    private int hash(int x, int y) {
+        int h = x * 374761393 + y * 668265263 + seed * 1442695041;
+        h = (h ^ (h >>> 13)) * 1274126177;
+        return h ^ (h >>> 16);
+    }
+
+    private int chooseTile(int tx, int ty) {
+        int r = Math.floorMod(hash(tx, ty), 100);     // floorMod, bo hash bywa ujemny
+        int suma = 0;
+        for (int i = 0; i < WAGI.length; i++) {
+            suma += WAGI[i];
+            if (r < suma) return i;
+        }
+        return 0;
+    }
+
     private void fidoUpdate(double dt) {
         double graczX = gracz.x + gracz.w / 2;
         double graczy = gracz.y + gracz.h / 2;
@@ -300,28 +323,34 @@ public class ESTG extends Application {
     }
 
     private void render(GraphicsContext gc) {
-        double size = 100;
+        double size = 130;
 
         double camX = cam.renderX();
         double camY = cam.renderY();
 
-        double tileW = ROZMIAR_KAFELKA;
-        double tileH = ROZMIAR_KAFELKA;
+        int T = (int) ROZMIAR_KAFELKA;
+        int x0 = (int) Math.floor(camX / T);               // indeks pierwszego widocznego kafelka
+        int y0 = (int) Math.floor(camY / T);
+        int nx = (int) Math.ceil(SZEROKOSC / T) + 1;       // ile kafelków w poziomie (z zapasem)
+        int ny = (int) Math.ceil(WYSOKOSC / T) + 1;
 
-        // Pierwszy kafelek widoczny w lewym górnym rogu
-        double startX = Math.floor(camX / tileW) * tileW;
-        double startY = Math.floor(camY / tileH) * tileH;
+        for (int i = 0; i < nx; i++) {
+            for (int j = 0; j < ny; j++) {
+                int tx = x0 + i;
+                int ty = y0 + j;
 
-        // Rysowanie kafelków na całym ekranie
-        for (double x = startX; x < camX + SZEROKOSC + tileW; x += tileW) {
-            for (double y = startY; y < camY + WYSOKOSC + tileH; y += tileH) {
-                gc.drawImage(
-                        tlo,
-                        x - camX,
-                        y - camY,
-                        tileW,
-                        tileH
-                );
+                int h = hash(tx, ty);
+                int obrot = (h >>> 8) & 3;
+                Image tile = tiles[chooseTile(tx, ty)];
+
+                double sx = tx * T - camX;
+                double sy = ty * T - camY;
+
+                gc.save();
+                gc.translate(sx + T / 2.0, sy + T / 2.0);
+                gc.rotate(obrot * 90);
+                gc.drawImage(tile, -T / 2.0, -T / 2.0, T, T);
+                gc.restore();
             }
         }
 
@@ -404,31 +433,30 @@ public class ESTG extends Application {
             gc.fillRect(b.x - camX, b.y - camY, b.w, b.h);
         }
 
-        gc.setFill(Color.WHITE);
         gc.setFont(Font.font("Arial", 20));
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
-        gc.setFont(Font.font("Arial", 15));
+        gc.setFont(Font.font("Arial", 18));
         gc.setFill(Color.RED);
-        gc.fillText(String.format("ammo"), myszX - 50, myszY - 55);
-        gc.fillText(String.format("%d/%d" , ammo, magCappacity), myszX - 40, myszY - 35);
-        gc.fillText(String.format("reload"), myszX - 50, myszY + 65);
+        gc.fillText("ammo", myszX - 65, myszY - 70);
+        gc.fillText(String.format("%d/%d" , ammo, magCappacity), myszX - 50, myszY - 50);
+        gc.fillText("reload", myszX - 65, myszY + 80);
         if (ammo == 0){
-            gc.fillText(String.format("empty"), myszX - 40, myszY + 50);
+            gc.fillText("empty", myszX - 50, myszY + 60);
         }else if(czasDoStrzalu == 0) {
-            gc.fillText(String.format("ready"), myszX - 40, myszY + 50);
+            gc.fillText("ready", myszX - 50, myszY + 60);
         } else {
-            gc.fillText(String.format("%.1f s", czasDoStrzalu), myszX - 40, myszY + 50);
+            gc.fillText(String.format("%.1f s", czasDoStrzalu), myszX - 50, myszY + 60);
         }
         gc.setTextAlign(TextAlignment.RIGHT);
-        gc.fillText(String.format("swap"), myszX + 50, myszY + 65);
+        gc.fillText("swap", myszX + 65, myszY + 80);
         if (doWymiany == 0){
-            gc.fillText(String.format("ready"), myszX + 40, myszY + 50);
+            gc.fillText("ready", myszX + 50, myszY + 60);
         }else {
-            gc.fillText(String.format("%.1f s", doWymiany), myszX + 40, myszY + 50);
+            gc.fillText(String.format("%.1f s", doWymiany), myszX + 50, myszY + 60);
         }
         if (gracz.koliduje(fido) && doWymiany == 0 && ammo == 0){
-            gc.fillText(String.format("'R' to swap mag"), myszX + 55, myszY + 90);
+            gc.fillText("'R' to swap mag", myszX + 65, myszY + 110);
         }
 
         gc.drawImage(
