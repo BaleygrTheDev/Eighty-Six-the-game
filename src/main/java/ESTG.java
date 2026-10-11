@@ -1,5 +1,6 @@
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -10,11 +11,8 @@ import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
+
 import javafx.scene.image.Image;
 
 public class ESTG extends Application {
@@ -63,8 +61,8 @@ public class ESTG extends Application {
     private double myszX = SZEROKOSC / 2;
     private double myszY = WYSOKOSC / 2;
     private boolean myszStrzela = false;
-    private double dashCzas = 0.15;
-    private double dashPredkosc = 1000;
+    private double dashCzas = 0.10;
+    private double dashPredkosc = 1200;
     private double dashTimer = 0;
     private double dashCooldown = 0;
     private double dashX = 0;
@@ -72,10 +70,10 @@ public class ESTG extends Application {
     private boolean qPoprzednio = false;
     private boolean ePoprzednio = false;
     private double czasDoStrzalu = 0;
-    private final double szybkostrzelnosc = .01;
+    private final double szybkostrzelnosc = 1;
     private final double predkoscPocisku = 1200;
-    private final double magCappacity = 14;
-    private double  ammo = magCappacity;
+    private final int magCappacity = 14;
+    private int  ammo = magCappacity;
     private  final double wymiana = 5;
     private double doWymiany = 0;
     static final double playerSpeed = 350;
@@ -84,19 +82,21 @@ public class ESTG extends Application {
 
     private double katGracza = 0;
 
+    private Image crosshair =
+            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/jugger crosshair.png")));
     private Image teksturaGracza =
-            new Image(getClass().getResourceAsStream("/jugger walker.png"));
+            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/jugger walker.png")));
     private Image teksturaFido =
-            new Image(getClass().getResourceAsStream("/fido walk.png"));
+            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/fido walk.png")));
     private double czasAnimacji = 0;
     private double czasAnimacjiFido = 0;
     private int klatka = 0;
     private int klatkaFido = 0;
     private final double czasKlatki = 0.12;
     private Image tlo =
-            new Image(getClass().getResourceAsStream("/kawalek_ziemi.png"));
+            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/kawalek_ziemi.png")));
     private Image bullet =
-            new Image(getClass().getResourceAsStream("/HEAT bulet.png"));
+            new Image(Objects.requireNonNull(getClass().getResourceAsStream("/HEAT bulet.png")));
 
     private void nowaGra() {
         gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 75, 0);
@@ -300,6 +300,8 @@ public class ESTG extends Application {
     }
 
     private void render(GraphicsContext gc) {
+        double size = 100;
+
         double camX = cam.renderX();
         double camY = cam.renderY();
 
@@ -406,9 +408,36 @@ public class ESTG extends Application {
         gc.setFont(Font.font("Arial", 20));
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
-        gc.fillText(String.format("Ammo: %.1f / %.1f" , ammo, magCappacity), SZEROKOSC - 200, 25);
-        gc.fillText(String.format("Przeładowanie: %.1f s", czasDoStrzalu), SZEROKOSC - 200, 75);
-        gc.fillText(String.format("Przeładowanie: %.1f s", doWymiany), SZEROKOSC - 200, 125);
+        gc.setFont(Font.font("Arial", 15));
+        gc.setFill(Color.RED);
+        gc.fillText(String.format("ammo"), myszX - 50, myszY - 55);
+        gc.fillText(String.format("%d/%d" , ammo, magCappacity), myszX - 40, myszY - 35);
+        gc.fillText(String.format("reload"), myszX - 50, myszY + 65);
+        if (ammo == 0){
+            gc.fillText(String.format("empty"), myszX - 40, myszY + 50);
+        }else if(czasDoStrzalu == 0) {
+            gc.fillText(String.format("ready"), myszX - 40, myszY + 50);
+        } else {
+            gc.fillText(String.format("%.1f s", czasDoStrzalu), myszX - 40, myszY + 50);
+        }
+        gc.setTextAlign(TextAlignment.RIGHT);
+        gc.fillText(String.format("swap"), myszX + 50, myszY + 65);
+        if (doWymiany == 0){
+            gc.fillText(String.format("ready"), myszX + 40, myszY + 50);
+        }else {
+            gc.fillText(String.format("%.1f s", doWymiany), myszX + 40, myszY + 50);
+        }
+        if (gracz.koliduje(fido) && doWymiany == 0 && ammo == 0){
+            gc.fillText(String.format("'R' to swap mag"), myszX + 55, myszY + 90);
+        }
+
+        gc.drawImage(
+                crosshair,
+                myszX - size / 2,
+                myszY - size / 2,
+                size,
+                size
+        );
     }
     @Override
     public void start(Stage stage) {
@@ -416,6 +445,7 @@ public class ESTG extends Application {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         Scene scene = new Scene(new StackPane(canvas));
 
+        scene.setCursor(Cursor.NONE);
         scene.setOnMouseMoved(e -> { myszX = e.getX(); myszY = e.getY(); });
         scene.setOnMouseDragged(e -> { myszX = e.getX(); myszY = e.getY(); });
 
@@ -440,10 +470,10 @@ public class ESTG extends Application {
             long poprzedni = 0;
 
             @Override
-            public void handle(long teraz) {
-                if (poprzedni == 0) { poprzedni = teraz; return; }
-                double dt = Math.min((teraz - poprzedni) / 1_000_000_000.0, 0.05);
-                poprzedni = teraz;
+            public void handle(long now) {
+                if (poprzedni == 0) { poprzedni = now; return; }
+                double dt = Math.min((now - poprzedni) / 1_000_000_000.0, 0.05);
+                poprzedni = now;
                 update(dt);
                 render(gc);
             }
