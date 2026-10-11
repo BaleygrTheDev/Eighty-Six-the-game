@@ -70,7 +70,7 @@ public class ESTG extends Application {
     private boolean qPoprzednio = false;
     private boolean ePoprzednio = false;
     private double czasDoStrzalu = 0;
-    private final double szybkostrzelnosc = 1;
+    private final double szybkostrzelnosc = .01;
     private final double predkoscPocisku = 1200;
     private final int magCappacity = 14;
     private int  ammo = magCappacity;
@@ -82,6 +82,7 @@ public class ESTG extends Application {
     private int seed;
     static final int[] WAGI = {65, 20, 10, 5};
     private double katGracza = 0;
+    private  double fido_kat;
 
     private Image crosshair = load("/jugger crosshair.png");
     private Image teksturaGracza = load("/jugger walker.png");
@@ -150,27 +151,32 @@ public class ESTG extends Application {
         double dy = graczy - fidoy;
         double odleglosc = Math.sqrt(dx * dx + dy * dy);
         if (odleglosc < 0.0001) return;
+        int dir = 0;
 
         if (!fido.koliduje(gracz)) {
             if (ammo == 0) {
-                fido.x += (dx / odleglosc) * fidoSpeed * dt;
-                fido.y += (dy / odleglosc) * fidoSpeed * dt;
+                dir = 1;
             } else if (odleglosc < 2000) {
-                fido.x -= (dx / odleglosc) * fidoSpeed * dt;
-                fido.y -= (dy / odleglosc) * fidoSpeed * dt;
+                dir = -1;
             } else {
-                fido.x += (dx / odleglosc) * fidoSpeed * dt;
-                fido.y += (dy / odleglosc) * fidoSpeed * dt;
+                dir = 1;
             }
-            czasAnimacjiFido += dt;
+        }else if(doWymiany <= 0 && ammo == magCappacity){
+            dir = -1;
+        }
+        if (dir != 0) {
+            fido.x += (dx / odleglosc) * dir * fidoSpeed * dt;
+            fido.y += (dy / odleglosc) * dir * fidoSpeed * dt;
+            fido_kat = Math.atan2(dir * (dy / odleglosc), dir * (dx / odleglosc));
 
+            czasAnimacjiFido += dt;
             if (czasAnimacjiFido >= czasKlatki) {
                 klatkaFido = (klatkaFido + 1) % 4;
                 czasAnimacjiFido = 0;
             }
-        }else if(doWymiany <= 0 && ammo == 14){
-            fido.x -= (dx / odleglosc) * fidoSpeed * dt;
-            fido.y -= (dy / odleglosc) * fidoSpeed * dt;
+        }else {
+            klatkaFido = 0;           // stoi, więc klatka stojąca, bez animacji chodzenia
+            czasAnimacjiFido = 0;
         }
     }
 
@@ -185,7 +191,7 @@ public class ESTG extends Application {
                 czasAnimacji = 0;
             }
         } else {
-            klatka = 0;
+            klatka = 1;
             czasAnimacji = 0;
         }
     }
@@ -379,18 +385,12 @@ public class ESTG extends Application {
         double dx = fido.x - camX + fido.w / 2;
         double dy = fido.y - camY + fido.h / 2;
 
-        double fido_kat = Math.toDegrees(
-                Math.atan2(gracz.y + gracz.h / 2 - (fido.y + fido.h / 2),
-                        gracz.x + gracz.w / 2 - (fido.x + fido.w / 2))
-        );
-
         double szerokoscFido = teksturaFido.getWidth() / 4;
         double wysokoscFido = teksturaFido.getHeight();
 
         gc.save();
         gc.translate(dx, dy);
-        gc.rotate(fido_kat);
-
+        gc.rotate(Math.toDegrees(fido_kat));
         gc.drawImage(
                 teksturaFido,
                 klatkaFido * szerokoscFido, 0,
