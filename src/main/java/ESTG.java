@@ -51,9 +51,11 @@ public class ESTG extends Application {
 
     private final Set<KeyCode> klawisze = new HashSet<>();
     private final List<Feldres> legion = new ArrayList<>();
-    private final List<Bulets> shot = new ArrayList<>();
+    private final List<Bulets> shotHEAT = new ArrayList<>();
+    private final List<Bulets> shotAPFSDS = new ArrayList<>();
     private final Random random = new Random();
     private final Cam cam = new Cam(SZEROKOSC, WYSOKOSC);
+    private RNG rng = new RNG();
 
     private Feldres gracz;
     private Feldres fido;
@@ -72,17 +74,18 @@ public class ESTG extends Application {
     private double czasDoStrzalu = 0;
     private final double szybkostrzelnosc = .01;
     private final double predkoscPocisku = 1200;
-    private final int magCappacity = 14;
-    private int  ammo = magCappacity;
+    private final int magCappacity = 7;
+    private int HEAT = magCappacity;
+    private int APFSDS = magCappacity;
     private  final double wymiana = 5;
     private double doWymiany = 0;
     static final double playerSpeed = 500;
     static final double fidoSpeed = 450;
     static final double dashWait = 0.6;
-    private int seed;
-    static final int[] WAGI = {65, 20, 10, 5};
     private double katGracza = 0;
     private  double fido_kat;
+    private int seed;
+    private int chosen;
 
     private Image crosshair = load("/jugger crosshair.png");
     private Image teksturaGracza = load("/jugger walker.png");
@@ -108,36 +111,24 @@ public class ESTG extends Application {
         gracz = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 50, 121, 75, 0);
         fido = new Feldres(SZEROKOSC / 2 - 25, WYSOKOSC / 2 - 300, 60, 50, 0);
         legion.clear();
-        shot.clear();
+        shotHEAT.clear();
+        shotAPFSDS.clear();
         czas = 0;
         czasDoStrzalu = 0;
         doWymiany = 0;
-        ammo = magCappacity;
+        HEAT = magCappacity;
+        APFSDS = magCappacity;
         dashCooldown = 0;
         dashTimer = 0;
         qPoprzednio = false;
         ePoprzednio = false;
         klatka = 0;
         klatkaFido = 0;
+        chosen = 0;
+        rng.newSeed();
         seed = random.nextInt();
         cam.drag(gracz.x + gracz.w / 2, gracz.y + gracz.h / 2, myszX, myszY);
         aktualizujKatGracza();
-    }
-
-    private int hash(int x, int y) {
-        int h = x * 374761393 + y * 668265263 + seed * 1442695041;
-        h = (h ^ (h >>> 13)) * 1274126177;
-        return h ^ (h >>> 16);
-    }
-
-    private int chooseTile(int tx, int ty) {
-        int r = Math.floorMod(hash(tx, ty), 100);     // floorMod, bo hash bywa ujemny
-        int suma = 0;
-        for (int i = 0; i < WAGI.length; i++) {
-            suma += WAGI[i];
-            if (r < suma) return i;
-        }
-        return 0;
     }
 
     private void fidoUpdate(double dt) {
@@ -154,14 +145,14 @@ public class ESTG extends Application {
         int dir = 0;
 
         if (!fido.koliduje(gracz)) {
-            if (ammo == 0) {
+            if (HEAT == 0 && APFSDS == 0) {
                 dir = 1;
             } else if (odleglosc < 2000) {
                 dir = -1;
             } else {
                 dir = 1;
             }
-        }else if(doWymiany <= 0 && ammo == magCappacity){
+        }else if(doWymiany <= 0 && HEAT == magCappacity && APFSDS == magCappacity){
             dir = -1;
         }
         if (dir != 0) {
@@ -198,44 +189,72 @@ public class ESTG extends Application {
 
     private void shooting(double dt) {
         czasDoStrzalu -= dt;
-        if(czasDoStrzalu < 0) czasDoStrzalu = 0;
+        if (czasDoStrzalu < 0) czasDoStrzalu = 0;
 
         double graczX = gracz.x + gracz.w / 2;
         double graczY = gracz.y + gracz.h / 2;
 
-        // Tworzenie pocisków podczas trzymania spacji
-        if (myszStrzela && czasDoStrzalu <= 0 && ammo >0) {
-            double kierunekX = Math.cos(katGracza);
-            double kierunekY = Math.sin(katGracza);
+        if (klawisze.contains(KeyCode.DIGIT1)) chosen = 0;
+        if (klawisze.contains(KeyCode.DIGIT2)) chosen = 1;
 
-            double startX = graczX + kierunekX * 45;
-            double startY = graczY + kierunekY * 45;
+        if (myszStrzela && czasDoStrzalu <= 0 && doWymiany <= 0) {
+            // Tworzenie pocisków podczas trzymania spacji
+            if (chosen == 0 && HEAT > 0) {
+                shotHEAT.add(newBullet(graczX, graczY , 10));
 
-            shot.add(new Bulets(
-                    startX - 5,
-                    startY - 2.5,
-                    10,
-                    5,
-                    kierunekX * predkoscPocisku,
-                    kierunekY * predkoscPocisku,
-                    10
-            ));
+                czasDoStrzalu = szybkostrzelnosc;
+                HEAT -= 1;
+            }else if (chosen == 1 && APFSDS > 0){
 
-            czasDoStrzalu = szybkostrzelnosc;
-            ammo -= 1;
+                shotAPFSDS.add(newBullet(graczX, graczY , 10));
+
+                czasDoStrzalu = szybkostrzelnosc;
+                APFSDS -= 1;
+            }
         }
+        moveBullet(shotHEAT, dt);
+        moveBullet(shotAPFSDS, dt);
+    }
 
-        // Aktualizacja lotu pocisków
-        for (int i = shot.size() - 1; i >= 0; i--) {
-            Bulets b = shot.get(i);
+    private void moveBullet(List<Bulets> list, double dt){
+        for (int i = list.size() - 1; i >= 0; i--) {
+            Bulets b = list.get(i);
 
             b.x += b.vx * dt;
             b.y += b.vy * dt;
 
             // Usuwanie pocisków daleko poza widocznym ekranem
             if (cam.outside(b.x, b.y, 200)) {
-                shot.remove(i);
+                list.remove(i);
             }
+        }
+    }
+
+    private Bulets newBullet(double graczX, double graczY,double dmg){
+        double dirX = Math.cos(katGracza);
+        double dirY = Math.sin(katGracza);
+
+        return new Bulets(
+                graczX - 5,
+                graczY - 2.5,
+                10,
+                5,
+                dirX * predkoscPocisku,
+                dirY* predkoscPocisku,
+                dmg
+        );
+    }
+
+    private void rysujPociski(GraphicsContext gc, List<Bulets> lista, Image obraz,
+                              double camX, double camY) {
+        for (Bulets b : lista) {
+            double katPocisku = Math.toDegrees(Math.atan2(b.vy, b.vx));
+
+            gc.save();
+            gc.translate(b.x - camX + b.w / 2, b.y - camY + b.h / 2);
+            gc.rotate(katPocisku);
+            gc.drawImage(obraz, -b.w / 2, -b.h / 2, b.w, b.h);
+            gc.restore();
         }
     }
 
@@ -276,36 +295,36 @@ public class ESTG extends Application {
         if (doWymiany <= 0) {
             gracz.x += ruchX * playerSpeed * dt;
             gracz.y += ruchY * playerSpeed * dt;
+
+            if (dashTimer > 0) {
+                double krok = Math.min(dt, dashTimer);
+                gracz.x += dashX * dashPredkosc * krok;
+                gracz.y += dashY * dashPredkosc * krok;
+                dashTimer -= krok;
+            }
+
+            boolean q = klawisze.contains(KeyCode.Q);
+            boolean e = klawisze.contains(KeyCode.E);
+
+            if (dashCooldown == 0) {
+                if (q && !qPoprzednio) {
+                    dashX = Math.sin(katGracza);
+                    dashY = -Math.cos(katGracza);
+                    dashTimer = dashCzas;
+                    dashCooldown = dashWait;
+                } else if (e && !ePoprzednio) {
+                    dashX = -Math.sin(katGracza);
+                    dashY = Math.cos(katGracza);
+                    dashTimer = dashCzas;
+                    dashCooldown = dashWait;
+                }
+            }
+
+            qPoprzednio = q;
+            ePoprzednio = e;
         }
 
         dashCooldown = Math.max(0, dashCooldown - dt);
-
-        boolean q = klawisze.contains(KeyCode.Q);
-        boolean e = klawisze.contains(KeyCode.E);
-
-        if (dashCooldown == 0) {
-            if (q && !qPoprzednio) {
-                dashX = Math.sin(katGracza);
-                dashY = -Math.cos(katGracza);
-                dashTimer = dashCzas;
-                dashCooldown = dashWait;
-            } else if (e && !ePoprzednio) {
-                dashX = -Math.sin(katGracza);
-                dashY = Math.cos(katGracza);
-                dashTimer = dashCzas;
-                dashCooldown = dashWait;
-            }
-        }
-
-        qPoprzednio = q;
-        ePoprzednio = e;
-
-        if (dashTimer > 0) {
-            double krok = Math.min(dt, dashTimer);
-            gracz.x += dashX * dashPredkosc * krok;
-            gracz.y += dashY * dashPredkosc * krok;
-            dashTimer -= krok;
-        }
 
         if (klawisze.contains(KeyCode.R) && gracz.koliduje(fido) && doWymiany <= 0){
             doWymiany = wymiana;
@@ -316,8 +335,13 @@ public class ESTG extends Application {
 
             if (doWymiany <= 0) {
                 doWymiany = 0;
-                ammo = magCappacity;
+                HEAT = magCappacity;
+                APFSDS = magCappacity;
             }
+        }
+
+        if(klawisze.contains(KeyCode.BACK_SPACE)){
+            nowaGra();
         }
 
         cam.updateCam(gracz.x + gracz.w / 2, gracz.y + gracz.h / 2, myszX, myszY, dt);
@@ -345,9 +369,9 @@ public class ESTG extends Application {
                 int tx = x0 + i;
                 int ty = y0 + j;
 
-                int h = hash(tx, ty);
+                int h = rng.hash(tx, ty);
                 int obrot = (h >>> 8) & 3;
-                Image tile = tiles[chooseTile(tx, ty)];
+                Image tile = tiles[rng.chooseTile(tx, ty)];
 
                 double sx = tx * T - camX;
                 double sy = ty * T - camY;
@@ -401,32 +425,8 @@ public class ESTG extends Application {
 
         gc.restore();
 
-        for (Bulets b : shot) {
-            // Kąt lotu pocisku w stopniach
-            double katPocisku = Math.toDegrees(
-                    Math.atan2(b.vy, b.vx)
-            );
-
-            gc.save();
-
-            // Środek pocisku na ekranie
-            double cxPocisku = b.x - camX + b.w / 2;
-            double cyPocisku = b.y - camY + b.h / 2;
-
-            // Obrót tekstury wokół jej środka
-            gc.translate(cxPocisku, cyPocisku);
-            gc.rotate(katPocisku);
-
-            gc.drawImage(
-                    bullet,
-                    -b.w / 2,
-                    -b.h / 2,
-                    b.w,
-                    b.h
-            );
-
-            gc.restore();
-        }
+        rysujPociski(gc, shotHEAT, bullet, camX, camY);
+        rysujPociski(gc, shotAPFSDS, bullet, camX, camY);
 
         gc.setFill(Color.TOMATO);
         for (Feldres b : legion) {
@@ -437,11 +437,11 @@ public class ESTG extends Application {
         gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText(String.format("Czas: %.1f s", czas), 10, 25);
         gc.setFont(Font.font("Arial", 18));
-        gc.setFill(Color.RED);
-        gc.fillText("ammo", myszX - 65, myszY - 70);
-        gc.fillText(String.format("%d/%d" , ammo, magCappacity), myszX - 50, myszY - 50);
+
+        gc.fillText("HEAT", myszX - 65, myszY - 70);
+        gc.fillText(String.format("%d/%d" , HEAT, magCappacity), myszX - 50, myszY - 50);
         gc.fillText("reload", myszX - 65, myszY + 80);
-        if (ammo == 0){
+        if (HEAT == 0 && APFSDS == 0){
             gc.fillText("empty", myszX - 50, myszY + 60);
         }else if(czasDoStrzalu == 0) {
             gc.fillText("ready", myszX - 50, myszY + 60);
@@ -449,14 +449,22 @@ public class ESTG extends Application {
             gc.fillText(String.format("%.1f s", czasDoStrzalu), myszX - 50, myszY + 60);
         }
         gc.setTextAlign(TextAlignment.RIGHT);
+        gc.fillText("APFSDS", myszX + 65, myszY - 70);
+        gc.fillText(String.format("%d/%d" , APFSDS, magCappacity), myszX + 50, myszY - 50);
         gc.fillText("swap", myszX + 65, myszY + 80);
         if (doWymiany == 0){
             gc.fillText("ready", myszX + 50, myszY + 60);
         }else {
             gc.fillText(String.format("%.1f s", doWymiany), myszX + 50, myszY + 60);
         }
-        if (gracz.koliduje(fido) && doWymiany == 0 && ammo == 0){
-            gc.fillText("'R' to swap mag", myszX + 65, myszY + 110);
+        gc.setTextAlign(TextAlignment.CENTER);
+        if (gracz.koliduje(fido) && doWymiany == 0 && HEAT == 0 && APFSDS == 0){
+            gc.fillText("'R' to swap mag", myszX, myszY + 110);
+        }
+        if(chosen == 0){
+            gc.fillText("<      ", myszX, myszY - 50);
+        }else {
+            gc.fillText("      >", myszX, myszY - 50);
         }
 
         gc.drawImage(
