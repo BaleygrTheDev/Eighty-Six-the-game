@@ -8,7 +8,7 @@ import java.util.Set;
 
 public class FS {
     public static final int MAG = 7;                 // pojemność magazynka każdej broni
-    private static final double FIRE_DELAY = 0.01;   // przerwa między strzałami
+    private static final double FIRE_DELAY = 1;   // przerwa między strzałami
     private static final double BULLET_SPEED = 1200;
     private static final double MUZZLE = 45;
 
@@ -16,6 +16,7 @@ public class FS {
         double x, y, w, h;
         double vx, vy;
         double dmg;
+        double prevX, prevY;
 
         Bullets(double x, double y, double w, double h,
                 double vx, double vy, double dmg) {
@@ -26,6 +27,8 @@ public class FS {
             this.vx = vx;
             this.vy = vy;
             this.dmg = dmg;
+            this.prevX = x;
+            this.prevY = y;
         }
     }
 
@@ -80,13 +83,13 @@ public class FS {
 
             // Tworzenie pocisków podczas trzymania spacji
             if (chosen == 0 && heat > 0) {
-                shotHEAT.add(newBullet(playerX, playerY, angle, 10));
+                shotHEAT.add(newBullet(playerX, playerY, angle, 20));
 
                 untilFire = FIRE_DELAY;
                 heat -= 1;
             }else if (chosen == 1 && apfsds > 0){
 
-                shotAPFSDS.add(newBullet(playerX, playerY, angle, 10));
+                shotAPFSDS.add(newBullet(playerX, playerY, angle, 15));
 
                 untilFire = FIRE_DELAY;
                 apfsds -= 1;
@@ -100,6 +103,8 @@ public class FS {
         for (int i = list.size() - 1; i >= 0; i--) {
             Bullets b = list.get(i);
 
+            b.prevX = b.x;
+            b.prevY = b.y;
             b.x += b.vx * dt;
             b.y += b.vy * dt;
 
@@ -134,6 +139,36 @@ public class FS {
             gc.rotate(katPocisku);
             gc.drawImage(obraz, -b.w / 2, -b.h / 2, b.w, b.h);
             gc.restore();
+        }
+    }
+
+    public void hitEnemies(List<ESTG.Legion> legion) {
+        hitList(shotHEAT, legion);
+        hitList(shotAPFSDS, legion);
+    }
+
+    private void hitList(List<Bullets> list, List<ESTG.Legion> legion) {
+        for (int i = list.size() - 1; i >= 0; i--) {
+            Bullets b = list.get(i);
+
+            // rectangle covering the whole path travelled this frame
+            double left   = Math.min(b.prevX, b.x);
+            double right  = Math.max(b.prevX, b.x) + b.w;
+            double top    = Math.min(b.prevY, b.y);
+            double bottom = Math.max(b.prevY, b.y) + b.h;
+
+            for (ESTG.Legion l : legion) {
+                if (l.hp <= 0) continue;
+
+                boolean hit = left < l.x + l.w && right > l.x
+                        && top < l.y + l.h && bottom > l.y;
+
+                if (hit) {
+                    l.hp -= b.dmg;
+                    list.remove(i);
+                    break;                // this bullet is used up, go to the next one
+                }
+            }
         }
     }
 }

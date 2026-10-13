@@ -1,5 +1,5 @@
 public class Cam {
-    static final double CAM_SMOOTHING = 5;
+    static final double CAM_SMOOTHING = 10;
     static final double MARGIN_X = 140;
     static final double MARGIN_Y = 100;
     static final double DEAD_X = 0;      // połowa szerokości pasa martwego (px od środka)
