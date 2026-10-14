@@ -5,6 +5,7 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -19,37 +20,12 @@ public class ESTG extends Application {
     static final double HEIGHT = 1000;
     static final double TILE_SIZE = 300;
 
-    static class Feldres {
-        double x, y, w, h, vy;
-
-        Feldres(double x, double y, double w, double h, double vy) {
-            this.x = x; this.y = y; this.w = w; this.h = h; this.vy = vy;
-        }
-
-        boolean koliduje(Feldres b) {
-            return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
-        }
-    }
-
-    static class Legion extends Feldres {
-        int type;          // 0 = amaise, 1 = grauwolf, 2 = lowe
-        double hp;
-        double speed;
-        double angle;
-
-        Legion(int type, double x, double y) {
-            super(x, y, SIZE_W[type], SIZE_H[type], 0);
-            this.type = type;
-            this.hp = HP[type];
-            this.speed = SPEED[type];
-        }
-    }
-
     private final Set<KeyCode> klawisze = new HashSet<>();
-    private final List<Legion> legion = new ArrayList<>();
     private final Random random = new Random();
     private final Cam cam = new Cam(WIDTH, HEIGHT);
     private RNG rng = new RNG();
+    private final Legions legion = new Legions();
+    private FS fs = new FS();
 
     private Feldres player;
     private Feldres fido;
@@ -76,25 +52,11 @@ public class ESTG extends Application {
     private double targetAngle;
     private double aimX;
     private double aimY;
-    private int round = 0;
-    private int difficulty = 5;          // point pool for the next round
-    private double breakTimer = 0;
-    static final int[]    COST    = {1, 3, 5};
-    static final double[] HP      = {15, 30, 45};
-    static final double[] SPEED   = {260, 200, 140};
-    static final double[] SIZE_W  = {40, 70, 110};
-    static final double[] SIZE_H  = {30, 50, 80};
-    static final double ROUND_BREAK = 3.0;     // seconds between rounds
-    static final double SPAWN_RADIUS_MIN = 1200;
-    static final double SPAWN_RADIUS_RANGE = 300;
     static final double PLAYER_MAX_HP = 100;
-    static final double[] CONTACT_DAMAGE = {5, 12, 25};   // per enemy type
     static final double HURT_COOLDOWN = 0.5;
     private double playerHp = PLAYER_MAX_HP;
     private double hurtTimer = 0;
     private int seed;
-
-    private FS fs = new FS();
 
     private Image crosshair = load("/jugger crosshair.png");
     private Image aim = load("/jugger aim.png");
@@ -120,11 +82,8 @@ public class ESTG extends Application {
     private void newGame() {
         player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, 0);
         fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0);
-        legion.clear();
         fs.clearB();
-        round = 0;
-        difficulty = 5;
-        breakTimer = 0;
+        legion.reset();
         playerHp = PLAYER_MAX_HP;
         hurtTimer = 0;
         czas = 0;
@@ -139,84 +98,6 @@ public class ESTG extends Application {
         seed = random.nextInt();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
         aktualizujKatGracza();
-    }
-
-    private void newWave() {
-        round++;
-        int points = difficulty;
-
-        while (points > 0) {
-            // collect the types we can still afford
-            List<Integer> available = new ArrayList<>();
-            for (int t = 0; t < COST.length; t++) {
-                if (COST[t] <= points) available.add(t);
-            }
-
-            int type = available.get(random.nextInt(available.size()));
-            points -= COST[type];
-
-            // spawn position on a circle around the player
-            double playerX = player.x + player.w / 2;
-            double playerY = player.y + player.h / 2;
-            double angle = random.nextDouble() * Math.PI * 2;
-            double radius = SPAWN_RADIUS_MIN + random.nextDouble() * SPAWN_RADIUS_RANGE;
-
-            legion.add(new Legion(type,
-                    playerX + Math.cos(angle) * radius,
-                    playerY + Math.sin(angle) * radius));
-        }
-
-        difficulty += 5;
-    }
-
-    private void updateEnemies(double dt) {
-        double playerX = player.x + player.w / 2;
-        double playerY = player.y + player.h / 2;
-
-        for (Legion l : legion) {
-            double ex = l.x + l.w / 2;
-            double ey = l.y + l.h / 2;
-            double dx = playerX - ex;
-            double dy = playerY - ey;
-            double distance = Math.hypot(dx, dy);
-            if (distance < 0.0001) continue;
-
-            l.angle = Math.atan2(dy, dx);
-            l.x += (dx / distance) * l.speed * dt;
-            l.y += (dy / distance) * l.speed * dt;
-        }
-
-        // separation so enemies don't stack on one point
-        for (int i = 0; i < legion.size(); i++) {
-            for (int j = i + 1; j < legion.size(); j++) {
-                Legion a = legion.get(i);
-                Legion b = legion.get(j);
-                double ax = a.x + a.w / 2, ay = a.y + a.h / 2;
-                double bx = b.x + b.w / 2, by = b.y + b.h / 2;
-                double dx = bx - ax, dy = by - ay;
-                double distance = Math.hypot(dx, dy);
-                double minDistance = (a.w + b.w) / 3;
-                if (distance < minDistance && distance > 0.0001) {
-                    double push = (minDistance - distance) / 2;
-                    a.x -= dx / distance * push;
-                    a.y -= dy / distance * push;
-                    b.x += dx / distance * push;
-                    b.y += dy / distance * push;
-                }
-            }
-        }
-    }
-
-    private void updateRounds(double dt) {
-        if (legion.isEmpty()) {
-            if (breakTimer <= 0) {
-                breakTimer = ROUND_BREAK;      // round just ended, start the countdown
-            }
-            breakTimer -= dt;
-            if (breakTimer <= 0) {
-                newWave();
-            }
-        }
     }
 
     private void fidoUpdate(double dt) {
@@ -372,29 +253,27 @@ public class ESTG extends Application {
         }
 
         fs.shooting(dt, player, katGracza, cam, klawisze, doWymiany > 0);
-        fs.hitEnemies(legion);
-        legion.removeIf(l -> l.hp <= 0);
+        fs.hitEnemies(legion.getEnemies());
+        legion.removeDead();
+
         hurtTimer = Math.max(0, hurtTimer - dt);
         if (hurtTimer <= 0) {
-            for (Legion l : legion) {
-                if (l.koliduje(player)) {
-                    playerHp -= CONTACT_DAMAGE[l.type];
-                    hurtTimer = HURT_COOLDOWN;
-                    break;                      // one hit per cooldown
-                }
+            double damage = legion.contactDamage(player);
+            if (damage > 0) {
+                playerHp -= damage;
+                hurtTimer = HURT_COOLDOWN;
             }
         }
         if (playerHp <= 0) {
             newGame();
-            return;                             // do not process the rest of this frame with the old state
+            return;
         }
 
         cam.updateCam(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY, dt);
         aktualizujKatGracza();
         fidoUpdate(dt);
         aktualizujAnimacje(dt, dlugosc);
-        updateEnemies(dt);
-        updateRounds(dt);
+        legion.update(dt, player, cam);
     }
 
     private void render(GraphicsContext gc) {
@@ -472,7 +351,7 @@ public class ESTG extends Application {
         fs.drawBullets(gc, fs.shotHEAT, bullet, camX, camY);
         fs.drawBullets(gc, fs.shotAPFSDS, bullet, camX, camY);
 
-        for (Legion l : legion) {
+        for (Legions.Legion l : legion.getEnemies()) {
             double ex = l.x - camX + l.w / 2;
             double ey = l.y - camY + l.h / 2;
 
@@ -486,13 +365,13 @@ public class ESTG extends Application {
 
         gc.setFill(Color.BLACK);
         // if your text color was changed by the fill above
-        gc.fillText("Round: " + round, 50, 50);
+        gc.fillText("Round: " + legion.getRound(), 50, 50);
         gc.fillText(String.format("Czas: %.1f s", czas), 50, 25);
         gc.setFont(Font.font("Courier", 50));
         gc.setFill(Color.RED);
-        if (legion.isEmpty() && breakTimer > 0) {
+        if (legion.isEmpty() && legion.getBreakTimer() > 0) {
             gc.setTextAlign(TextAlignment.CENTER);
-            gc.fillText(String.format("Round %d in %.1f s", round + 1, breakTimer), WIDTH / 2, 150);
+            gc.fillText(String.format("Round %d in %.1f s", legion.getRound() + 1, legion.getBreakTimer()), WIDTH / 2, 150);
             gc.setTextAlign(TextAlignment.LEFT);
         }
 
@@ -521,11 +400,6 @@ public class ESTG extends Application {
             gc.fillText(String.format("%.1f s", doWymiany), myszX + 50, myszY + 60);
         }
         gc.setTextAlign(TextAlignment.CENTER);
-        if(fs.getChosen() == 0){
-            gc.fillText("<      ", myszX, myszY - 50);
-        }else {
-            gc.fillText("      >", myszX, myszY - 50);
-        }
         if (player.koliduje(fido) && doWymiany == 0 && fs.isEmpty()){
             gc.fillText("'R' to swap mag", myszX, myszY + 110);
         }
@@ -563,13 +437,19 @@ public class ESTG extends Application {
 
         scene.setOnMousePressed(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
-                fs.mouseShoots = true;
+                fs.shootsHeat = true;
+            }
+            if (e.getButton() == MouseButton.SECONDARY) {
+                fs.shootsApfsds = true;
             }
         });
 
         scene.setOnMouseReleased(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
-                fs.mouseShoots = false;
+                fs.shootsHeat = false;
+            }
+            if (e.getButton() == MouseButton.SECONDARY) {
+                fs.shootsApfsds = false;
             }
         });
 

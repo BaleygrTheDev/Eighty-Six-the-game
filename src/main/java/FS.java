@@ -1,6 +1,7 @@
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,17 +36,16 @@ public class FS {
     public final List<Bullets> shotHEAT = new ArrayList<>();
     public final List<Bullets> shotAPFSDS = new ArrayList<>();
 
-    public boolean mouseShoots = false;
+    public boolean shootsHeat = false;      // left mouse button held
+    public boolean shootsApfsds = false;
 
     // stan należy do FS i tylko tutaj się zmienia
     private double untilFire = 0;
-    private int chosen = 0;
     private int heat = MAG;
     private int apfsds = MAG;
 
 
     // ---------- odczyt dla HUD-u i Fido ----------
-    public int getChosen()        { return chosen; }
     public int getHeat()          { return heat; }
     public int getApfsds()        { return apfsds; }
     public double getUntilFire()  { return untilFire; }
@@ -61,7 +61,6 @@ public class FS {
         shotHEAT.clear();
         shotAPFSDS.clear();
         untilFire = 0;
-        chosen = 0;
         refill();
     }
 
@@ -70,24 +69,21 @@ public class FS {
      * @param swapping czy trwa wymiana magazynków (wtedy nie wolno strzelać)
      */
 
-    public void shooting(double dt, ESTG.Feldres player, double angle,
+    public void shooting(double dt, Feldres player, double angle,
                          Cam cam, Set<KeyCode> keys, boolean swapping) {
         untilFire = Math.max(0, untilFire - dt);
 
-        if (keys.contains(KeyCode.DIGIT1)) chosen = 0;
-        if (keys.contains(KeyCode.DIGIT2)) chosen = 1;
-
-        if (mouseShoots && untilFire <= 0 && !swapping) {
+        if (untilFire <= 0 && !swapping) {
             double playerX = player.x + player.w / 2;
             double playerY = player.y + player.h / 2;
 
             // Tworzenie pocisków podczas trzymania spacji
-            if (chosen == 0 && heat > 0) {
-                shotHEAT.add(newBullet(playerX, playerY, angle, 20));
+            if (shootsHeat && heat > 0) {
+                shotHEAT.add(newBullet(playerX, playerY, angle, 30));
 
                 untilFire = FIRE_DELAY;
                 heat -= 1;
-            }else if (chosen == 1 && apfsds > 0){
+            }else if (shootsApfsds && apfsds > 0){
 
                 shotAPFSDS.add(newBullet(playerX, playerY, angle, 15));
 
@@ -142,12 +138,12 @@ public class FS {
         }
     }
 
-    public void hitEnemies(List<ESTG.Legion> legion) {
+    public void hitEnemies(List<Legions.Legion> legion) {
         hitList(shotHEAT, legion);
         hitList(shotAPFSDS, legion);
     }
 
-    private void hitList(List<Bullets> list, List<ESTG.Legion> legion) {
+    private void hitList(List<Bullets> list, List<Legions.Legion> legion) {
         for (int i = list.size() - 1; i >= 0; i--) {
             Bullets b = list.get(i);
 
@@ -157,7 +153,7 @@ public class FS {
             double top    = Math.min(b.prevY, b.y);
             double bottom = Math.max(b.prevY, b.y) + b.h;
 
-            for (ESTG.Legion l : legion) {
+            for (Legions.Legion l : legion) {
                 if (l.hp <= 0) continue;
 
                 boolean hit = left < l.x + l.w && right > l.x
