@@ -6,8 +6,8 @@ public class Legions {
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
     static final double[] SPEED     = {260, 200, 140};
-    static final double[] SIZE_W    = {40, 70, 110};
-    static final double[] SIZE_H    = {30, 50, 80};
+    static final double[] SIZE_W    = {67, 70, 242};
+    static final double[] SIZE_H    = {50, 75, 150};
     static final double[] TURN_RATE = {200, 120, 70};   // degrees per second
     static final double[] CONTACT_DAMAGE = {5, 12, 25};
 
@@ -22,6 +22,8 @@ public class Legions {
         double hp;
         double speed;
         double angle;
+        int frame = 0;           // aktualna klatka animacji
+        double animTimer = 0;
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], 0);
@@ -37,6 +39,10 @@ public class Legions {
     private int round = 0;
     private int difficulty = 5;          // point pool for the next round
     private double breakTimer = 0;
+
+    static final int    FRAMES        = 4;      // liczba klatek w spritesheecie
+    static final double BASE_FRAME_TIME = 0.12; // czas klatki dla prędkości odniesienia
+    static final double REF_SPEED     = 260;
 
     public List<Legion> getEnemies() { return legion; }
     public int getRound()                 { return round; }
@@ -106,6 +112,8 @@ public class Legions {
         e.x -= e.w / 2;                        // (sx, sy) was meant as the centre
         e.y -= e.h / 2;
         e.angle = Math.atan2(playerY - sy, playerX - sx);   // start already facing the player
+        e.frame = random.nextInt(FRAMES);
+        e.animTimer = random.nextDouble() * BASE_FRAME_TIME;
         legion.add(e);
     }
 
@@ -134,6 +142,13 @@ public class Legions {
 
             l.x += (Math.cos(l.angle)) * l.speed * dt;
             l.y += (Math.sin(l.angle)) * l.speed * dt;
+
+            l.animTimer += dt;
+            double frameTime = BASE_FRAME_TIME * REF_SPEED / l.speed;
+            if (l.animTimer >= frameTime) {
+                l.frame = (l.frame + 1) % FRAMES;
+                l.animTimer -= frameTime;      // -= zamiast = 0, żeby nie gubić nadwyżki czasu
+            }
         }
 
         // separation so enemies don't stack on one point

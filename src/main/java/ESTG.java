@@ -48,7 +48,7 @@ public class ESTG extends Application {
     static final double dashWait = 0.6;
     private double katGracza = 0;
     private double fido_kat;
-    private double turnRate = 300;
+    private double turnRate = 120;
     private double targetAngle;
     private double aimX;
     private double aimY;
@@ -56,7 +56,6 @@ public class ESTG extends Application {
     static final double HURT_COOLDOWN = 0.5;
     private double playerHp = PLAYER_MAX_HP;
     private double hurtTimer = 0;
-    private int seed;
 
     private Image crosshair = load("/jugger crosshair.png");
     private Image aim = load("/jugger aim.png");
@@ -73,6 +72,11 @@ public class ESTG extends Application {
             load("/tile4.png"),
             load("/tile3.png"),
             load("/tile2.png")
+    };
+    private Image[] legionTexture = {
+            load( "/ameise walk.png"),
+            load( "/grauwolf walk.png"),
+            load( "/lowe walk.png")
     };
 
     private Image load(String file){
@@ -94,10 +98,9 @@ public class ESTG extends Application {
         ePoprzednio = false;
         klatka = 0;
         klatkaFido = 0;
+        aktualizujKatGracza(1);
         rng.newSeed();
-        seed = random.nextInt();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
-        aktualizujKatGracza();
     }
 
     private void fidoUpdate(double dt) {
@@ -156,7 +159,7 @@ public class ESTG extends Application {
         }
     }
 
-    private void aktualizujKatGracza() {
+    private void aktualizujKatGracza(double dt) {
         double graczX = player.x + player.w / 2;
         double graczY = player.y + player.h / 2;
 
@@ -171,7 +174,10 @@ public class ESTG extends Application {
         double dy = celY - graczY;
         double distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance > 35) katGracza += diference * 0.1;
+        if (distance > 35){
+            double maxStep = Math.toRadians(turnRate) * dt;
+            katGracza += Math.max(-maxStep, Math.min(maxStep, diference));
+        }
 
         aimX = graczX + Math.cos(katGracza) * distance;
         aimY = graczY + Math.sin(katGracza) * distance;
@@ -180,7 +186,7 @@ public class ESTG extends Application {
     private void update(double dt) {
         czas += dt;
 
-        aktualizujKatGracza();
+        aktualizujKatGracza(dt);
 
         // ruch gracza
         double kierunekX = 0;
@@ -270,7 +276,7 @@ public class ESTG extends Application {
         }
 
         cam.updateCam(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY, dt);
-        aktualizujKatGracza();
+        aktualizujKatGracza(dt);
         fidoUpdate(dt);
         aktualizujAnimacje(dt, dlugosc);
         legion.update(dt, player, cam);
@@ -358,8 +364,16 @@ public class ESTG extends Application {
             gc.save();
             gc.translate(ex, ey);
             gc.rotate(Math.toDegrees(l.angle));
-            gc.setFill(l.type == 0 ? Color.TOMATO : l.type == 1 ? Color.ORANGE : Color.DARKRED);
-            gc.fillRect(-l.w / 2, -l.h / 2, l.w, l.h);
+            Image tex = legionTexture[l.type];
+            double frameW = tex.getWidth() / Legions.FRAMES;
+            double frameH = tex.getHeight();
+            gc.drawImage(
+                    tex,
+                    l.frame * frameW, 0,        // wycinek ze spritesheetu
+                    frameW, frameH,
+                    -l.w / 2, -l.h / 2,         // miejsce docelowe, wyśrodkowane
+                    l.w, l.h
+            );
             gc.restore();
         }
 
