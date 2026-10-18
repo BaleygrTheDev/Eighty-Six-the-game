@@ -138,6 +138,19 @@ public class FS {
         }
     }
 
+    public void drawRockets(GraphicsContext gc, List<Legions.Rockets> lista, Image obraz,
+                            double camX, double camY) {
+        for (Legions.Rockets b : lista) {
+            double katPocisku = Math.toDegrees(Math.atan2(b.vy, b.vx));
+
+            gc.save();
+            gc.translate(b.x - camX + b.w / 2, b.y - camY + b.h / 2);
+            gc.rotate(katPocisku);
+            gc.drawImage(obraz, -b.w / 2, -b.h / 2, b.w, b.h);
+            gc.restore();
+        }
+    }
+
     public void hitEnemies(List<Legions.Legion> legion) {
         hitList(shotHEAT, legion);
         hitList(shotAPFSDS, legion);

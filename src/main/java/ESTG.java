@@ -34,7 +34,7 @@ public class ESTG extends Application {
     private double myszY = HEIGHT / 2;
 
     private double dashCzas = 0.10;
-    private double dashPredkosc = 1200;
+    private double dashPredkosc = 1500;
     private double dashTimer = 0;
     private double dashCooldown = 0;
     private double dashX = 0;
@@ -43,37 +43,27 @@ public class ESTG extends Application {
     private boolean ePoprzednio = false;
     private  final double wymiana = 5;
     private double doWymiany = 0;
-    static final double playerSpeed = 500;
-    static final double fidoSpeed = 450;
-    static final double dashWait = 0.6;
-    private double katGracza = 0;
-    private double fido_kat;
-    private double turnRate = 120;
+    static final double dashWait = 0.6;;
     private double targetAngle;
     private double aimX;
     private double aimY;
     static final double PLAYER_MAX_HP = 100;
     static final double HURT_COOLDOWN = 0.5;
-    private double playerHp = PLAYER_MAX_HP;
     private double hurtTimer = 0;
 
-    private Image crosshair = load("/jugger crosshair.png");
-    private Image aim = load("/jugger aim.png");
-    private Image teksturaGracza = load("/jugger walker.png");
-    private Image teksturaFido = load("/fido walk.png");
-    private double czasAnimacji = 0;
-    private double czasAnimacjiFido = 0;
-    private int klatka = 0;
-    private int klatkaFido = 0;
+    private final Image crosshair = load("/jugger crosshair.png");
+    private final Image aim = load("/jugger aim.png");
+    private final Image teksturaGracza = load("/jugger walker.png");
+    private final Image teksturaFido = load("/fido walk.png");
     private final double czasKlatki = 0.12;
-    private Image bullet = load("/HEAT bulet.png");
-    private Image[] tiles = {
+    private final Image bullet = load("/HEAT bulet.png");
+    private final Image[] tiles = {
             load("/tile1.png"),
             load("/tile4.png"),
             load("/tile3.png"),
             load("/tile2.png")
     };
-    private Image[] legionTexture = {
+    private final Image[] legionTexture = {
             load( "/ameise walk.png"),
             load( "/grauwolf walk.png"),
             load( "/lowe walk.png")
@@ -84,11 +74,11 @@ public class ESTG extends Application {
     }
 
     private void newGame() {
-        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, 0);
-        fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0);
+        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, 600, 120, 0, 0);
+        fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0, 0, 550, 120, 0, 0);
         fs.clearB();
         legion.reset();
-        playerHp = PLAYER_MAX_HP;
+        player.hp = PLAYER_MAX_HP;
         hurtTimer = 0;
         czas = 0;
         doWymiany = 0;
@@ -96,8 +86,8 @@ public class ESTG extends Application {
         dashTimer = 0;
         qPoprzednio = false;
         ePoprzednio = false;
-        klatka = 0;
-        klatkaFido = 0;
+        player.frame = 0;
+        fido.frame = 0;
         aktualizujKatGracza(1);
         rng.newSeed();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
@@ -119,7 +109,7 @@ public class ESTG extends Application {
         if (!fido.koliduje(player)) {
             if (fs.isEmpty()) {
                 dir = 1;
-            } else if (odleglosc < 2000) {
+            } else if (odleglosc < 3000) {
                 dir = -1;
             } else {
                 dir = 1;
@@ -128,18 +118,18 @@ public class ESTG extends Application {
             dir = -1;
         }
         if (dir != 0) {
-            fido.x += (dx / odleglosc) * dir * fidoSpeed * dt;
-            fido.y += (dy / odleglosc) * dir * fidoSpeed * dt;
-            fido_kat = Math.atan2(dir * (dy / odleglosc), dir * (dx / odleglosc));
+            fido.x += (dx / odleglosc) * dir * fido.speed * dt;
+            fido.y += (dy / odleglosc) * dir * fido.speed * dt;
+            fido.angle = Math.atan2(dir * (dy / odleglosc), dir * (dx / odleglosc));
 
-            czasAnimacjiFido += dt;
-            if (czasAnimacjiFido >= czasKlatki) {
-                klatkaFido = (klatkaFido + 1) % 4;
-                czasAnimacjiFido = 0;
+           fido.animTimer += dt;
+            if (fido.animTimer >= czasKlatki) {
+                fido.frame = (fido.frame + 1) % 4;
+                fido.animTimer = 0;
             }
         }else {
-            klatkaFido = 0;           // stoi, więc klatka stojąca, bez animacji chodzenia
-            czasAnimacjiFido = 0;
+            fido.frame = 0;           // stoi, więc klatka stojąca, bez animacji chodzenia
+            fido.animTimer = 0;
         }
     }
 
@@ -147,15 +137,15 @@ public class ESTG extends Application {
         boolean chodzi = (dlugosc > 0 && doWymiany <= 0);
 
         if (chodzi) {
-            czasAnimacji += dt;
+            player.animTimer += dt;
 
-            if (czasAnimacji >= czasKlatki) {
-                klatka = (klatka + 1) % 4;
-                czasAnimacji = 0;
+            if (player.animTimer >= czasKlatki) {
+                player.frame = (player.frame + 1) % 4;
+                player.animTimer = 0;
             }
         } else {
-            klatka = 1;
-            czasAnimacji = 0;
+            player.frame = 1;
+            player.animTimer = 0;
         }
     }
 
@@ -167,20 +157,20 @@ public class ESTG extends Application {
         double celY = cam.worldY(myszY);
 
         targetAngle = Math.atan2(celY - graczY, celX - graczX);
-        double diference = targetAngle  - katGracza;
+        double diference = targetAngle  - player.angle;
         diference = Math.atan2(Math.sin(diference), Math.cos(diference));
 
         double dx = celX - graczX;
         double dy = celY - graczY;
         double distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance > 35){
-            double maxStep = Math.toRadians(turnRate) * dt;
-            katGracza += Math.max(-maxStep, Math.min(maxStep, diference));
+        if (distance * cam.getZoom() > 35){
+            double maxStep = Math.toRadians(player.turnRate) * dt;
+            player.angle += Math.max(-maxStep, Math.min(maxStep, diference));
         }
 
-        aimX = graczX + Math.cos(katGracza) * distance;
-        aimY = graczY + Math.sin(katGracza) * distance;
+        aimX = graczX + Math.cos(player.angle) * distance;
+        aimY = graczY + Math.sin(player.angle) * distance;
     }
 
     private void update(double dt) {
@@ -198,8 +188,8 @@ public class ESTG extends Application {
         if (klawisze.contains(KeyCode.DOWN) || klawisze.contains(KeyCode.S)) kierunekY -= 1;
 
         // Ruch względem obrotu gracza
-        double ruchX = Math.cos(katGracza) * kierunekY - Math.sin(katGracza) * kierunekX;
-        double ruchY = Math.sin(katGracza) * kierunekY + Math.cos(katGracza) * kierunekX;
+        double ruchX = Math.cos(player.angle) * kierunekY - Math.sin(player.angle) * kierunekX;
+        double ruchY = Math.sin(player.angle) * kierunekY + Math.cos(player.angle) * kierunekX;
 
         // Normalizacja ruchu po przekątnej
         double dlugosc = Math.sqrt(ruchX * ruchX + ruchY * ruchY);
@@ -208,8 +198,8 @@ public class ESTG extends Application {
             ruchY /= dlugosc;
         }
         if (doWymiany <= 0) {
-            player.x += ruchX * playerSpeed * dt;
-            player.y += ruchY * playerSpeed * dt;
+            player.x += ruchX * player.speed * dt;
+            player.y += ruchY * player.speed * dt;
 
             if (dashTimer > 0) {
                 double krok = Math.min(dt, dashTimer);
@@ -218,18 +208,18 @@ public class ESTG extends Application {
                 dashTimer -= krok;
             }
 
-            boolean q = klawisze.contains(KeyCode.Q);
-            boolean e = klawisze.contains(KeyCode.E);
+            boolean q = klawisze.contains(KeyCode.ALT);
+            boolean e = klawisze.contains(KeyCode.SPACE);
 
             if (dashCooldown == 0) {
                 if (q && !qPoprzednio) {
-                    dashX = Math.sin(katGracza);
-                    dashY = -Math.cos(katGracza);
+                    dashX = Math.sin(player.angle);
+                    dashY = -Math.cos(player.angle);
                     dashTimer = dashCzas;
                     dashCooldown = dashWait;
                 } else if (e && !ePoprzednio) {
-                    dashX = -Math.sin(katGracza);
-                    dashY = Math.cos(katGracza);
+                    dashX = -Math.sin(player.angle);
+                    dashY = Math.cos(player.angle);
                     dashTimer = dashCzas;
                     dashCooldown = dashWait;
                 }
@@ -258,19 +248,21 @@ public class ESTG extends Application {
             newGame();
         }
 
-        fs.shooting(dt, player, katGracza, cam, klawisze, doWymiany > 0);
+        fs.shooting(dt, player, player.angle, cam, klawisze, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
         legion.removeDead();
 
         hurtTimer = Math.max(0, hurtTimer - dt);
         if (hurtTimer <= 0) {
-            double damage = legion.contactDamage(player);
+            double damage = legion.contactDamage(player) ;
             if (damage > 0) {
-                playerHp -= damage;
+                player.hp -= damage;
                 hurtTimer = HURT_COOLDOWN;
             }
         }
-        if (playerHp <= 0) {
+        player.hp -= legion.shotsDamage(player);
+        player.hp -= legion.rocketsDamage(player);
+        if (player.hp <= 0) {
             newGame();
             return;
         }
@@ -284,15 +276,23 @@ public class ESTG extends Application {
 
     private void render(GraphicsContext gc) {
         double size = 130;
+        double zoom = cam.getZoom();
 
         double camX = cam.renderX();
         double camY = cam.renderY();
 
+        // =====================================================================
+        //  ŚWIAT  (jednostki świata, skalowane przez zoom)
+        // =====================================================================
+        gc.save();
+        gc.scale(zoom, zoom);
+
+        // ---------- kafelki tła ----------
         int T = (int) TILE_SIZE;
-        int x0 = (int) Math.floor(camX / T);               // indeks pierwszego widocznego kafelka
+        int x0 = (int) Math.floor(camX / T);                    // indeks pierwszego widocznego kafelka
         int y0 = (int) Math.floor(camY / T);
-        int nx = (int) Math.ceil(WIDTH / T) + 1;       // ile kafelków w poziomie (z zapasem)
-        int ny = (int) Math.ceil(HEIGHT / T) + 1;
+        int nx = (int) Math.ceil(WIDTH / zoom / T) + 1;         // widoczny obszar świata to WIDTH / zoom
+        int ny = (int) Math.ceil(HEIGHT / zoom / T) + 1;
 
         for (int i = 0; i < nx; i++) {
             for (int j = 0; j < ny; j++) {
@@ -309,15 +309,16 @@ public class ESTG extends Application {
                 gc.save();
                 gc.translate(sx + T / 2.0, sy + T / 2.0);
                 gc.rotate(obrot * 90);
-                gc.drawImage(tile, -T / 2.0, -T / 2.0, T, T);
+                // +1 i -0.5: lekka zakładka, żeby przy skalowaniu nie było szwów między kafelkami
+                gc.drawImage(tile, -T / 2.0 - 0.5, -T / 2.0 - 0.5, T + 1, T + 1);
                 gc.restore();
             }
         }
 
+        // ---------- gracz ----------
         double cx = player.x - camX + player.w / 2;
         double cy = player.y - camY + player.h / 2;
-
-        double kat = Math.toDegrees(katGracza);
+        double kat = Math.toDegrees(player.angle);
 
         double szerokoscKlatki = teksturaGracza.getWidth() / 4;
         double wysokoscKlatki = teksturaGracza.getHeight();
@@ -325,16 +326,16 @@ public class ESTG extends Application {
         gc.save();
         gc.translate(cx, cy);
         gc.rotate(kat);
-
         gc.drawImage(
                 teksturaGracza,
-                klatka * szerokoscKlatki, 0,
+                player.frame * szerokoscKlatki, 0,
                 szerokoscKlatki, wysokoscKlatki,
                 -player.w / 2, -player.h / 2,
                 player.w, player.h
         );
         gc.restore();
 
+        // ---------- Fido ----------
         double dx = fido.x - camX + fido.w / 2;
         double dy = fido.y - camY + fido.h / 2;
 
@@ -343,20 +344,21 @@ public class ESTG extends Application {
 
         gc.save();
         gc.translate(dx, dy);
-        gc.rotate(Math.toDegrees(fido_kat));
+        gc.rotate(Math.toDegrees(fido.angle));
         gc.drawImage(
                 teksturaFido,
-                klatkaFido * szerokoscFido, 0,
+                fido.frame * szerokoscFido, 0,
                 szerokoscFido, wysokoscFido,
                 -fido.w / 2, -fido.h / 2,
                 fido.w, fido.h
         );
-
         gc.restore();
 
+        // ---------- pociski gracza ----------
         fs.drawBullets(gc, fs.shotHEAT, bullet, camX, camY);
         fs.drawBullets(gc, fs.shotAPFSDS, bullet, camX, camY);
 
+        // ---------- wrogowie ----------
         for (Legions.Legion l : legion.getEnemies()) {
             double ex = l.x - camX + l.w / 2;
             double ey = l.y - camY + l.h / 2;
@@ -377,53 +379,73 @@ public class ESTG extends Application {
             gc.restore();
         }
 
+        // ---------- pociski i rakiety wrogów (nad wrogami, żeby były widoczne przy lufie) ----------
+        fs.drawBullets(gc, legion.shots, bullet, camX, camY);
+        fs.drawRockets(gc, legion.rockets, bullet, camX, camY);
+
+        gc.restore();   // koniec skali; od tej chwili rysujemy w pikselach EKRANU
+
+        // =====================================================================
+        //  HUD  (piksele ekranu, bez zoomu)
+        // =====================================================================
+
+        // ---------- licznik rundy i czasu ----------
         gc.setFill(Color.BLACK);
-        // if your text color was changed by the fill above
+        gc.setFont(Font.font("Arial", 18));
+        gc.setTextAlign(TextAlignment.LEFT);        // jawnie, bo poprzednia klatka zostawiała CENTER
         gc.fillText("Round: " + legion.getRound(), 50, 50);
         gc.fillText(String.format("Czas: %.1f s", czas), 50, 25);
-        gc.setFont(Font.font("Courier", 50));
-        gc.setFill(Color.RED);
+
+        // ---------- odliczanie do następnej rundy ----------
         if (legion.isEmpty() && legion.getBreakTimer() > 0) {
+            gc.setFill(Color.RED);
+            gc.setFont(Font.font("Courier", 50));
             gc.setTextAlign(TextAlignment.CENTER);
-            gc.fillText(String.format("Round %d in %.1f s", legion.getRound() + 1, legion.getBreakTimer()), WIDTH / 2, 150);
-            gc.setTextAlign(TextAlignment.LEFT);
+            gc.fillText(String.format("Round %d in %.1f s",
+                    legion.getRound() + 1, legion.getBreakTimer()), WIDTH / 2, 150);
         }
 
+        // ---------- napisy przy kursorze ----------
         gc.setFill(Color.TOMATO);
-        gc.setFont(Font.font("Arial", 20));
-        gc.setTextAlign(TextAlignment.LEFT);
         gc.setFont(Font.font("Arial", 18));
 
+        // lewa strona: HEAT
+        gc.setTextAlign(TextAlignment.LEFT);
         gc.fillText("HEAT", myszX - 65, myszY - 70);
-        gc.fillText(String.format("%d/%d" , fs.getHeat(), FS.MAG), myszX - 50, myszY - 50);
+        gc.fillText(String.format("%d/%d", fs.getHeat(), FS.MAG), myszX - 50, myszY - 50);
         gc.fillText("reload", myszX - 65, myszY + 80);
-        if (fs.isEmpty()){
+        if (fs.isEmpty()) {
             gc.fillText("empty", myszX - 50, myszY + 60);
-        }else if(fs.getUntilFire() == 0) {
+        } else if (fs.getUntilFire() == 0) {
             gc.fillText("ready", myszX - 50, myszY + 60);
         } else {
             gc.fillText(String.format("%.1f s", fs.getUntilFire()), myszX - 50, myszY + 60);
         }
+
+        // prawa strona: APFSDS
         gc.setTextAlign(TextAlignment.RIGHT);
         gc.fillText("APFSDS", myszX + 65, myszY - 70);
-        gc.fillText(String.format("%d/%d" , fs.getApfsds(), FS.MAG), myszX + 50, myszY - 50);
+        gc.fillText(String.format("%d/%d", fs.getApfsds(), FS.MAG), myszX + 50, myszY - 50);
         gc.fillText("swap", myszX + 65, myszY + 80);
-        if (doWymiany == 0){
+        if (doWymiany == 0) {
             gc.fillText("ready", myszX + 50, myszY + 60);
-        }else {
+        } else {
             gc.fillText(String.format("%.1f s", doWymiany), myszX + 50, myszY + 60);
         }
+
+        // podpowiedź przy Fido
         gc.setTextAlign(TextAlignment.CENTER);
-        if (player.koliduje(fido) && doWymiany == 0 && fs.isEmpty()){
+        if (player.koliduje(fido) && doWymiany == 0 && fs.isEmpty()) {
             gc.fillText("'R' to swap mag", myszX, myszY + 110);
         }
 
-
+        // ---------- pasek HP ----------
         gc.setFill(Color.DARKGRAY);
         gc.fillRect(myszX + 75, myszY - 75, 20, 150);
         gc.setFill(Color.LIMEGREEN);
-        gc.fillRect(myszX + 75, myszY - 75, 20, 150  * Math.max(0, playerHp) / PLAYER_MAX_HP);
+        gc.fillRect(myszX + 75, myszY - 75, 20, 150 * Math.max(0, player.hp) / PLAYER_MAX_HP);
 
+        // ---------- celownik (ekran) i punkt celowania (świat -> ekran) ----------
         gc.drawImage(
                 crosshair,
                 myszX - size / 2,
@@ -433,8 +455,8 @@ public class ESTG extends Application {
         );
         gc.drawImage(
                 aim,
-                aimX - camX - 13,
-                aimY - camY - 14,
+                (aimX - camX) * zoom - 13,
+                (aimY - camY) * zoom - 14,
                 25,
                 25
         );
@@ -448,6 +470,7 @@ public class ESTG extends Application {
         scene.setCursor(Cursor.NONE);
         scene.setOnMouseMoved(e -> { myszX = e.getX(); myszY = e.getY(); });
         scene.setOnMouseDragged(e -> { myszX = e.getX(); myszY = e.getY(); });
+        scene.setOnScroll(e -> cam.zoomBy(e.getDeltaY()));
 
         scene.setOnMousePressed(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {

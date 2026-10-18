@@ -5,11 +5,27 @@ import java.util.Random;
 public class Legions {
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
-    static final double[] SPEED     = {260, 200, 140};
+    static final double[] SPEED     = {280, 220, 150};
     static final double[] SIZE_W    = {67, 70, 242};
     static final double[] SIZE_H    = {50, 75, 150};
     static final double[] TURN_RATE = {200, 120, 70};   // degrees per second
-    static final double[] CONTACT_DAMAGE = {5, 12, 25};
+    static final double[] CONTACT_DAMAGE = {0, 12, 0};
+    static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku
+    static final double[] FIRE_DELAY  = {0.3, 0,  2.0};   // sekundy między strzałami
+    static final double[] SHOT_SPEED  = {650, 700,  500};   // px/s
+    static final double[] SHOT_RANGE  = {800, 2000,  1300};  // max dystans do gracza, z którego strzela
+    static final double[] SHOT_W      = {12,  16,   26};    // rozmiar pocisku (hitbox + sprite)
+    static final double[] SHOT_H      = {5,   6,    10};
+    static final double[] SHOT_SPREAD = {
+            Math.toRadians(12),    // ameise: bardzo niecelne
+            Math.toRadians(25),     // grauwolf: średnio
+            Math.toRadians(0.5)    // lowe: prawie idealnie
+    };
+    static final double   AIM_TOLERANCE = Math.toRadians(8);// max błąd kąta, przy którym wolno strzelić
+    static final double HURT_COOLDOWN = 1;
+    static  final double ROCKET_LIFE = 3.5;
+    static final int[] AMMO = {Integer.MAX_VALUE, 6, Integer.MAX_VALUE};
+    double hurtTimer = 0;
 
     static final double ROUND_BREAK        = 3.0;       // seconds between rounds
     static final double SPAWN_RADIUS_MIN   = 1000;
@@ -19,22 +35,33 @@ public class Legions {
 
     static class Legion extends Feldres {
         int type;          // 0 = amaise, 1 = grauwolf, 2 = lowe
-        double hp;
-        double speed;
-        double angle;
-        int frame = 0;           // aktualna klatka animacji
-        double animTimer = 0;
+        double fireTimer;
+        int ammo;
 
         Legion(int type, double x, double y) {
-            super(x, y, SIZE_W[type], SIZE_H[type], 0);
+            super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
             this.type = type;
-            this.hp = HP[type];
-            this.speed = SPEED[type];
+            this.fireTimer = FIRE_DELAY[type] * (0.3 + Math.random() * 0.7);
+            this.ammo = AMMO[type];
+        }
+    }
+
+    static class Rockets extends FS.Bullets {
+        double life;
+        double delay;
+
+        Rockets(double x, double y, double w, double h,
+                double vx, double vy, double dmg, double life, double delay) {
+            super(x, y, w, h, vx, vy, dmg);
+            this.life = life;
+            this.delay = delay;
         }
     }
 
     private final List<Legion> legion = new ArrayList<>();
     private final Random random = new Random();
+    public final List<FS.Bullets> shots = new ArrayList<>();
+    public final List<Rockets> rockets = new ArrayList<>();
 
     private int round = 0;
     private int difficulty = 5;          // point pool for the next round
@@ -51,13 +78,18 @@ public class Legions {
 
     public void reset(){
         legion.clear();
+        shots.clear();
+        rockets.clear();
         round = 0;
         difficulty = 5;
         breakTimer = 0;
     }
 
     public void update(double dt, Feldres player, Cam cam) {
-        updateEnemies(dt, player);
+        updateEnemies(dt, player, cam);
+        updateShots(dt, cam);
+        updateRockets(dt, cam, player);
+        legionDamage(player, dt);
         updateRounds(dt, player, cam);
     }
 
@@ -98,11 +130,11 @@ public class Legions {
 
     private void spawn(int type, double playerX, double playerY, Cam cam) {
         double sx = 0, sy = 0;
+        double ringScale = 1.0 / Math.min(cam.getZoom(), 1.0);   // oddalenie -> większy pierścień
 
-        // draw random points on a ring until one lies outside the visible screen
         for (int attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
             double a = random.nextDouble() * Math.PI * 2;
-            double r = SPAWN_RADIUS_MIN + random.nextDouble() * SPAWN_RADIUS_RANGE;
+            double r = (SPAWN_RADIUS_MIN + random.nextDouble() * SPAWN_RADIUS_RANGE) * ringScale;
             sx = playerX + Math.cos(a) * r;
             sy = playerY + Math.sin(a) * r;
             if (cam.outside(sx, sy, SPAWN_MARGIN)) break;
@@ -117,7 +149,7 @@ public class Legions {
         legion.add(e);
     }
 
-    public void updateEnemies(double dt, Feldres player) {
+    public void updateEnemies(double dt, Feldres player, Cam cam) {
         double playerX = player.x + player.w / 2;
         double playerY = player.y + player.h / 2;
 
@@ -140,14 +172,38 @@ public class Legions {
             double step = Math.max(-maxStep, Math.min(maxStep, difference));
             l.angle += step;
 
-            l.x += (Math.cos(l.angle)) * l.speed * dt;
-            l.y += (Math.sin(l.angle)) * l.speed * dt;
+            if (l.type == 2 && distance < 800){
+                l.x += (Math.cos(l.angle)) * 1 * dt;
+                l.y += (Math.sin(l.angle)) * 1 * dt;
+            }else {
+                l.x += (Math.cos(l.angle)) * l.speed * dt;
+                l.y += (Math.sin(l.angle)) * l.speed * dt;
+            }
 
             l.animTimer += dt;
             double frameTime = BASE_FRAME_TIME * REF_SPEED / l.speed;
             if (l.animTimer >= frameTime) {
                 l.frame = (l.frame + 1) % FRAMES;
                 l.animTimer -= frameTime;      // -= zamiast = 0, żeby nie gubić nadwyżki czasu
+            }
+
+            // ---------- strzelanie ----------
+            l.fireTimer = Math.max(0, l.fireTimer - dt);
+
+            // ile jeszcze brakuje do idealnego namierzenia (po tym, jak już się obrócił w tej klatce)
+            double remainingError = Math.abs(difference - step);
+
+            double cx = l.x + l.w / 2;
+            double cy = l.y + l.h / 2;
+            boolean inRange  = distance <= SHOT_RANGE[l.type];
+            boolean onScreen = !cam.outside(cx, cy, 0);
+            boolean aimed    = remainingError < AIM_TOLERANCE;
+            boolean hasAmmo  = l.ammo > 0;
+
+            if (l.fireTimer <= 0 && inRange && onScreen && aimed && hasAmmo) {
+                shoot(l);
+                l.ammo--;
+                l.fireTimer = FIRE_DELAY[l.type];
             }
         }
 
@@ -171,6 +227,120 @@ public class Legions {
             }
         }
     }
+    private void shoot(Legion l) {
+        double cx = l.x + l.w / 2;
+        double cy = l.y + l.h / 2;
+
+        // lufa zawsze na przodzie sprite'a, czyli zgodnie z obrotem wroga
+        double muzzleX = cx + Math.cos(l.angle) * (l.w / 2);
+        double muzzleY = cy + Math.sin(l.angle) * (l.w / 2);
+
+        // losowy błąd: liczba z przedziału (-SPREAD, +SPREAD)
+        double error = (random.nextDouble() * 2 - 1) * SHOT_SPREAD[l.type];
+        double shotAngle = l.angle + error;
+
+        double dirX = Math.cos(shotAngle);
+        double dirY = Math.sin(shotAngle);
+
+        double w = SHOT_W[l.type];
+        double h = SHOT_H[l.type];        // lufa na przodzie sprite'a (sprite jest zwrócony w prawo)
+
+        if (l.type == 0){
+            shots.add(new FS.Bullets(
+                    muzzleX - w / 2 -10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                    muzzleY - h / 2 - 10,
+                    w, h,
+                    dirX * SHOT_SPEED[l.type],
+                    dirY * SHOT_SPEED[l.type],
+                    SHOT_DAMAGE[l.type]
+            ));
+
+            shots.add(new FS.Bullets(
+                    muzzleX - w / 2 + 10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                    muzzleY - h / 2 - 10,
+                    w, h,
+                    dirX * SHOT_SPEED[l.type],
+                    dirY * SHOT_SPEED[l.type],
+                    SHOT_DAMAGE[l.type]
+            ));
+        } else if (l.type == 1) {
+            rockets.add(new Rockets(
+                    muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                    muzzleY - h / 2,
+                    w, h,
+                    dirX * SHOT_SPEED[l.type],
+                    dirY * SHOT_SPEED[l.type],
+                    SHOT_DAMAGE[l.type],
+                    0,
+                    0.2
+            ));
+        } else {
+            shots.add(new FS.Bullets(
+                    muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                    muzzleY - h / 2,
+                    w, h,
+                    dirX * SHOT_SPEED[l.type],
+                    dirY * SHOT_SPEED[l.type],
+                    SHOT_DAMAGE[l.type]
+            ));
+        }
+    }
+
+    public void updateShots(double dt, Cam cam) {
+        for (int i = shots.size() - 1; i >= 0; i--) {
+            FS.Bullets b = shots.get(i);
+            b.prevX = b.x;
+            b.prevY = b.y;
+            b.x += b.vx * dt;
+            b.y += b.vy * dt;
+
+            if (cam.outside(b.x, b.y, 1000)) {
+                shots.remove(i);
+            }
+        }
+    }
+
+    public void updateRockets(double dt, Cam cam, Feldres player){
+        for (int i = rockets.size() - 1; i >= 0; i--) {
+            Rockets b = rockets.get(i);
+
+            double playerX = player.x + player.w / 2;
+            double playerY = player.y + player.h / 2;
+            double rocketX = b.x + b.w / 2;
+            double rocketY = b.y + b.h / 2;
+            double dx = playerX - rocketX;
+            double dy = playerY - rocketY;
+            double targetAngle = Math.atan2(dy, dx);
+            double currentAngle = Math.atan2(b.vy, b.vx);
+            double speed = Math.hypot(b.vx, b.vy);
+            double difference = targetAngle - Math.atan2(b.vy, b.vx);
+            difference = Math.atan2(Math.sin(difference), Math.cos(difference));
+            double maxStep = Math.toRadians(70) * dt;
+            double step = Math.max(-maxStep, Math.min(maxStep, difference));
+            double newAngle = currentAngle + step;
+
+            if (b.delay > 0) {
+                b.prevX = b.x;
+                b.prevY = b.y;
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+            }else {
+                b.vx = Math.cos(newAngle) * speed;
+                b.vy = Math.sin(newAngle) * speed;
+                b.prevX = b.x;
+                b.prevY = b.y;
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+            }
+
+            if (cam.outside(b.x, b.y, 1000) || b.life >= ROCKET_LIFE) {
+                rockets.remove(i);
+            }
+            b.life += dt;
+            b.delay -= dt;
+        }
+    }
+
     public void removeDead() {
         legion.removeIf(l -> l.hp <= 0);
     }
@@ -181,5 +351,60 @@ public class Legions {
             if (l.koliduje(player)) return CONTACT_DAMAGE[l.type];
         }
         return 0;
+    }
+
+     private void legionDamage(Feldres player,double dt){
+        for (Legion l : legion) {
+            if (l.koliduje(player) && hurtTimer <= 0) {
+                l.hp -= 15;
+                hurtTimer = HURT_COOLDOWN;
+            } else {
+                hurtTimer -= dt;
+            }
+        }
+    }
+
+    public double shotsDamage(Feldres player) {
+        double total = 0;
+        for (int i = shots.size() - 1; i >= 0; i--) {
+            FS.Bullets b = shots.get(i);
+
+            // prostokąt obejmujący całą drogę pocisku w tej klatce (tak samo jak w FS.hitList)
+            double left   = Math.min(b.prevX, b.x);
+            double right  = Math.max(b.prevX, b.x) + b.w;
+            double top    = Math.min(b.prevY, b.y);
+            double bottom = Math.max(b.prevY, b.y) + b.h;
+
+            boolean hit = left < player.x + player.w && right > player.x
+                    && top < player.y + player.h && bottom > player.y;
+
+            if (hit) {
+                total += b.dmg;
+                shots.remove(i);
+            }
+        }
+        return total;
+    }
+
+    public double rocketsDamage(Feldres player) {
+        double total = 0;
+        for (int i = rockets.size() - 1; i >= 0; i--) {
+            FS.Bullets b = rockets.get(i);
+
+            // prostokąt obejmujący całą drogę pocisku w tej klatce (tak samo jak w FS.hitList)
+            double left   = Math.min(b.prevX, b.x);
+            double right  = Math.max(b.prevX, b.x) + b.w;
+            double top    = Math.min(b.prevY, b.y);
+            double bottom = Math.max(b.prevY, b.y) + b.h;
+
+            boolean hit = left < player.x + player.w && right > player.x
+                    && top < player.y + player.h && bottom > player.y;
+
+            if (hit) {
+                total += b.dmg;
+                rockets.remove(i);
+            }
+        }
+        return total;
     }
 }
