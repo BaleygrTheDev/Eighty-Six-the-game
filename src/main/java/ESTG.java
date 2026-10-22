@@ -23,6 +23,7 @@ public class ESTG extends Application {
     private final Set<KeyCode> klawisze = new HashSet<>();
     private final Random random = new Random();
     private final Cam cam = new Cam(WIDTH, HEIGHT);
+    private final Radar radar = new Radar(WIDTH, HEIGHT);
     private RNG rng = new RNG();
     private final Legions legion = new Legions();
     private FS fs = new FS();
@@ -208,8 +209,8 @@ public class ESTG extends Application {
                 dashTimer -= krok;
             }
 
-            boolean q = klawisze.contains(KeyCode.ALT);
-            boolean e = klawisze.contains(KeyCode.SPACE);
+            boolean q = klawisze.contains(KeyCode.SPACE) && klawisze.contains(KeyCode.A);
+            boolean e = klawisze.contains(KeyCode.SPACE) && klawisze.contains(KeyCode.D);
 
             if (dashCooldown == 0) {
                 if (q && !qPoprzednio) {
@@ -444,6 +445,8 @@ public class ESTG extends Application {
         gc.fillRect(myszX + 75, myszY - 75, 20, 150);
         gc.setFill(Color.LIMEGREEN);
         gc.fillRect(myszX + 75, myszY - 75, 20, 150 * Math.max(0, player.hp) / PLAYER_MAX_HP);
+
+        radar.render(gc, player, fido, legion, cam);
 
         // ---------- celownik (ekran) i punkt celowania (świat -> ekran) ----------
         gc.drawImage(
