@@ -6,8 +6,8 @@ public class Legions {
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
     static final double[] SPEED     = {280, 220, 150};
-    static final double[] SIZE_W    = {67, 70, 242};
-    static final double[] SIZE_H    = {50, 75, 150};
+    static final double[] SIZE_W    = {90, 121, 242};
+    static final double[] SIZE_H    = {67, 135, 165};
     static final double[] TURN_RATE = {200, 120, 70};   // degrees per second
     static final double[] CONTACT_DAMAGE = {0, 12, 0};
     static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku

@@ -40,8 +40,6 @@ public class ESTG extends Application {
     private double dashCooldown = 0;
     private double dashX = 0;
     private double dashY = 0;
-    private boolean qPoprzednio = false;
-    private boolean ePoprzednio = false;
     private  final double wymiana = 5;
     private double doWymiany = 0;
     static final double dashWait = 0.6;;
@@ -85,8 +83,6 @@ public class ESTG extends Application {
         doWymiany = 0;
         dashCooldown = 0;
         dashTimer = 0;
-        qPoprzednio = false;
-        ePoprzednio = false;
         player.frame = 0;
         fido.frame = 0;
         aktualizujKatGracza(1);
@@ -204,30 +200,17 @@ public class ESTG extends Application {
 
             if (dashTimer > 0) {
                 double krok = Math.min(dt, dashTimer);
-                player.x += dashX * dashPredkosc * krok;
-                player.y += dashY * dashPredkosc * krok;
+                player.x += ruchX * dashPredkosc * krok;
+                player.y += ruchY * dashPredkosc * krok;
                 dashTimer -= krok;
             }
 
-            boolean q = klawisze.contains(KeyCode.SPACE) && klawisze.contains(KeyCode.A);
-            boolean e = klawisze.contains(KeyCode.SPACE) && klawisze.contains(KeyCode.D);
+            boolean dash = klawisze.contains(KeyCode.SPACE);
 
-            if (dashCooldown == 0) {
-                if (q && !qPoprzednio) {
-                    dashX = Math.sin(player.angle);
-                    dashY = -Math.cos(player.angle);
-                    dashTimer = dashCzas;
-                    dashCooldown = dashWait;
-                } else if (e && !ePoprzednio) {
-                    dashX = -Math.sin(player.angle);
-                    dashY = Math.cos(player.angle);
-                    dashTimer = dashCzas;
-                    dashCooldown = dashWait;
-                }
+            if (dashCooldown == 0 && dash) {
+                dashTimer = dashCzas;
+                dashCooldown = dashWait;
             }
-
-            qPoprzednio = q;
-            ePoprzednio = e;
         }
 
         dashCooldown = Math.max(0, dashCooldown - dt);
