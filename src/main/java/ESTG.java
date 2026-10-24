@@ -20,32 +20,23 @@ public class ESTG extends Application {
     static final double HEIGHT = 1000;
     static final double TILE_SIZE = 300;
 
+    private double myszX = WIDTH / 2;
+    private double myszY = HEIGHT / 2;
+
     private final Set<KeyCode> klawisze = new HashSet<>();
-    private final Random random = new Random();
     private final Cam cam = new Cam(WIDTH, HEIGHT);
     private final Radar radar = new Radar(WIDTH, HEIGHT);
     private RNG rng = new RNG();
     private final Legions legion = new Legions();
     private FS fs = new FS();
+    private final Movement movement = new Movement(myszX, myszY, klawisze);
 
     private Feldres player;
     private Feldres fido;
     private double czas;
-    private double myszX = WIDTH / 2;
-    private double myszY = HEIGHT / 2;
 
-    private double dashCzas = 0.10;
-    private double dashPredkosc = 1500;
-    private double dashTimer = 0;
-    private double dashCooldown = 0;
-    private double dashX = 0;
-    private double dashY = 0;
     private  final double wymiana = 5;
     private double doWymiany = 0;
-    static final double dashWait = 0.6;;
-    private double targetAngle;
-    private double aimX;
-    private double aimY;
     static final double PLAYER_MAX_HP = 100;
     static final double HURT_COOLDOWN = 0.5;
     private double hurtTimer = 0;
@@ -73,7 +64,7 @@ public class ESTG extends Application {
     }
 
     private void newGame() {
-        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, 600, 120, 0, 0);
+        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, 600, 250, 0, 0);
         fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0, 0, 550, 120, 0, 0);
         fs.clearB();
         legion.reset();
@@ -81,13 +72,11 @@ public class ESTG extends Application {
         hurtTimer = 0;
         czas = 0;
         doWymiany = 0;
-        dashCooldown = 0;
-        dashTimer = 0;
         player.frame = 0;
         fido.frame = 0;
-        aktualizujKatGracza(1);
         rng.newSeed();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
+        movement.reset();
     }
 
     private void fidoUpdate(double dt) {
@@ -146,74 +135,8 @@ public class ESTG extends Application {
         }
     }
 
-    private void aktualizujKatGracza(double dt) {
-        double graczX = player.x + player.w / 2;
-        double graczY = player.y + player.h / 2;
-
-        double celX = cam.worldX(myszX);
-        double celY = cam.worldY(myszY);
-
-        targetAngle = Math.atan2(celY - graczY, celX - graczX);
-        double diference = targetAngle  - player.angle;
-        diference = Math.atan2(Math.sin(diference), Math.cos(diference));
-
-        double dx = celX - graczX;
-        double dy = celY - graczY;
-        double distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance * cam.getZoom() > 35){
-            double maxStep = Math.toRadians(player.turnRate) * dt;
-            player.angle += Math.max(-maxStep, Math.min(maxStep, diference));
-        }
-
-        aimX = graczX + Math.cos(player.angle) * distance;
-        aimY = graczY + Math.sin(player.angle) * distance;
-    }
-
     private void update(double dt) {
         czas += dt;
-
-        aktualizujKatGracza(dt);
-
-        // ruch gracza
-        double kierunekX = 0;
-        double kierunekY = 0;
-
-        if (klawisze.contains(KeyCode.LEFT) || klawisze.contains(KeyCode.A)) kierunekX -= 1;
-        if (klawisze.contains(KeyCode.RIGHT) || klawisze.contains(KeyCode.D)) kierunekX += 1;
-        if (klawisze.contains(KeyCode.UP) || klawisze.contains(KeyCode.W)) kierunekY += 1;
-        if (klawisze.contains(KeyCode.DOWN) || klawisze.contains(KeyCode.S)) kierunekY -= 1;
-
-        // Ruch względem obrotu gracza
-        double ruchX = Math.cos(player.angle) * kierunekY - Math.sin(player.angle) * kierunekX;
-        double ruchY = Math.sin(player.angle) * kierunekY + Math.cos(player.angle) * kierunekX;
-
-        // Normalizacja ruchu po przekątnej
-        double dlugosc = Math.sqrt(ruchX * ruchX + ruchY * ruchY);
-        if (dlugosc > 1) {
-            ruchX /= dlugosc;
-            ruchY /= dlugosc;
-        }
-        if (doWymiany <= 0) {
-            player.x += ruchX * player.speed * dt;
-            player.y += ruchY * player.speed * dt;
-
-            if (dashTimer > 0) {
-                double krok = Math.min(dt, dashTimer);
-                player.x += ruchX * dashPredkosc * krok;
-                player.y += ruchY * dashPredkosc * krok;
-                dashTimer -= krok;
-            }
-
-            boolean dash = klawisze.contains(KeyCode.SPACE);
-
-            if (dashCooldown == 0 && dash) {
-                dashTimer = dashCzas;
-                dashCooldown = dashWait;
-            }
-        }
-
-        dashCooldown = Math.max(0, dashCooldown - dt);
 
         if (klawisze.contains(KeyCode.R) && player.koliduje(fido) && doWymiany <= 0 && !fs.isFull()){
             doWymiany = wymiana;
@@ -252,9 +175,11 @@ public class ESTG extends Application {
         }
 
         cam.updateCam(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY, dt);
-        aktualizujKatGracza(dt);
         fidoUpdate(dt);
-        aktualizujAnimacje(dt, dlugosc);
+        movement.setMouse(myszX, myszY);
+        movement.setDoWymiany(doWymiany);
+        movement.update(dt, player, cam);
+        aktualizujAnimacje(dt, movement.getLength());
         legion.update(dt, player, cam);
     }
 
@@ -441,8 +366,8 @@ public class ESTG extends Application {
         );
         gc.drawImage(
                 aim,
-                (aimX - camX) * zoom - 13,
-                (aimY - camY) * zoom - 14,
+                (movement.getAimX() - camX) * zoom - 13,
+                (movement.getAimY() - camY) * zoom - 14,
                 25,
                 25
         );
