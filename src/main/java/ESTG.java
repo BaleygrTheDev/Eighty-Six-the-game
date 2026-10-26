@@ -264,8 +264,7 @@ public class ESTG extends Application {
         gc.restore();
 
         // ---------- pociski gracza ----------
-        fs.drawBullets(gc, fs.shotHEAT, bullet, camX, camY);
-        fs.drawBullets(gc, fs.shotAPFSDS, bullet, camX, camY);
+        fs.drawBullets(gc, fs.shot, bullet, camX, camY);
 
         // ---------- wrogowie ----------
         for (Legions.Legion l : legion.getEnemies()) {
@@ -353,6 +352,12 @@ public class ESTG extends Application {
         gc.fillRect(myszX + 75, myszY - 75, 20, 150);
         gc.setFill(Color.LIMEGREEN);
         gc.fillRect(myszX + 75, myszY - 75, 20, 150 * Math.max(0, player.hp) / PLAYER_MAX_HP);
+
+        // ---------- dach cooldown ----------
+        gc.setFill(Color.BLUE);
+        gc.fillRect(myszX - 95, myszY - 75, 20, 150);
+        gc.setFill(Color.DARKGRAY);
+        gc.fillRect(myszX - 95, myszY - 75, 20, 150 * movement.getDashCooldown()*2);
 
         radar.render(gc, player, fido, legion, cam);
 

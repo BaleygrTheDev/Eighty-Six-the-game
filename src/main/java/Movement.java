@@ -30,6 +30,10 @@ public class Movement {
     public double getAimX(){ return this.aimX; }
     public double getAimY(){ return this.aimY; }
 
+    public double getDashCooldown() {
+        return dashCooldown;
+    }
+
     public void setDoWymiany(double doWymiany){ this.doWymiany = doWymiany; }
     public void setMouse(double mouseX, double mouseY) {
         this.mouseX = mouseX;

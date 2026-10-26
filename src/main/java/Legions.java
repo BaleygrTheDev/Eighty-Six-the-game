@@ -5,27 +5,28 @@ import java.util.Random;
 public class Legions {
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
-    static final double[] SPEED     = {280, 220, 150};
+    static final double[] SPEED     = {280, 350, 150};
     static final double[] SIZE_W    = {90, 121, 242};
     static final double[] SIZE_H    = {67, 135, 165};
     static final double[] TURN_RATE = {200, 120, 70};   // degrees per second
-    static final double[] CONTACT_DAMAGE = {0, 12, 0};
+    static final double[] CONTACT_DAMAGE = {0, 25, 0};
     static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku
-    static final double[] FIRE_DELAY  = {0.3, 0,  2.0};   // sekundy między strzałami
+    static final double[] FIRE_DELAY  = {0.3, 0.02,  2.0};   // sekundy między strzałami
     static final double[] SHOT_SPEED  = {650, 700,  500};   // px/s
-    static final double[] SHOT_RANGE  = {800, 2000,  1300};  // max dystans do gracza, z którego strzela
+    static final double[] SHOT_RANGE  = {800, 2200,  1300};  // max dystans do gracza, z którego strzela
     static final double[] SHOT_W      = {12,  16,   26};    // rozmiar pocisku (hitbox + sprite)
     static final double[] SHOT_H      = {5,   6,    10};
     static final double[] SHOT_SPREAD = {
             Math.toRadians(12),    // ameise: bardzo niecelne
-            Math.toRadians(25),     // grauwolf: średnio
+            Math.toRadians(20),    // grauwolf: średnio
             Math.toRadians(0.5)    // lowe: prawie idealnie
     };
-    static final double   AIM_TOLERANCE = Math.toRadians(8);// max błąd kąta, przy którym wolno strzelić
+    static final double AIM_TOLERANCE = Math.toRadians(8);// max błąd kąta, przy którym wolno strzelić
     static final double HURT_COOLDOWN = 1;
     static  final double ROCKET_LIFE = 3.5;
     static final int[] AMMO = {Integer.MAX_VALUE, 6, Integer.MAX_VALUE};
     double hurtTimer = 0;
+    boolean intersects = false;
 
     static final double ROUND_BREAK        = 3.0;       // seconds between rounds
     static final double SPAWN_RADIUS_MIN   = 1000;
@@ -36,13 +37,16 @@ public class Legions {
     static class Legion extends Feldres {
         int type;          // 0 = amaise, 1 = grauwolf, 2 = lowe
         double fireTimer;
+        double concussionTimer;
         int ammo;
+        boolean concussed;
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
             this.type = type;
             this.fireTimer = FIRE_DELAY[type] * (0.3 + Math.random() * 0.7);
             this.ammo = AMMO[type];
+            this.concussed = false;
         }
     }
 
@@ -52,7 +56,7 @@ public class Legions {
 
         Rockets(double x, double y, double w, double h,
                 double vx, double vy, double dmg, double life, double delay) {
-            super(x, y, w, h, vx, vy, dmg);
+            super(x, y, w, h, vx, vy, dmg, 2);
             this.life = life;
             this.delay = delay;
         }
@@ -84,6 +88,8 @@ public class Legions {
         difficulty = 5;
         breakTimer = 0;
     }
+
+    //public void setConcused(boolean concused) { = concused;}
 
     public void update(double dt, Feldres player, Cam cam) {
         updateEnemies(dt, player, cam);
@@ -125,7 +131,7 @@ public class Legions {
             spawn(type, playerX, playerY, cam);
         }
 
-        difficulty += 5;
+        difficulty += 2;
     }
 
     private void spawn(int type, double playerX, double playerY, Cam cam) {
@@ -161,7 +167,11 @@ public class Legions {
             double distance = Math.hypot(dx, dy);
             if (distance < 0.0001) continue;
 
-
+            if (l.concussionTimer > 0){
+                l.concussed = true;
+            }else {
+                l.concussed = false;
+            }
 
             double targetAngle = Math.atan2(dy, dx);
 
@@ -172,12 +182,17 @@ public class Legions {
             double step = Math.max(-maxStep, Math.min(maxStep, difference));
             l.angle += step;
 
-            if (l.type == 2 && distance < 800){
-                l.x += (Math.cos(l.angle)) * 1 * dt;
-                l.y += (Math.sin(l.angle)) * 1 * dt;
-            }else {
-                l.x += (Math.cos(l.angle)) * l.speed * dt;
-                l.y += (Math.sin(l.angle)) * l.speed * dt;
+            if (!l.concussed){
+                if (l.type == 2 && distance < 800){
+                    l.x += (Math.cos(l.angle)) * 1 * dt;
+                    l.y += (Math.sin(l.angle)) * 1 * dt;
+                }else if (l.type == 1 && distance < 2137 && l.ammo > 0){
+                    l.x += (Math.cos(l.angle)) * 1 * dt;
+                    l.y += (Math.sin(l.angle)) * 1 * dt;
+                } else {
+                    l.x += (Math.cos(l.angle)) * l.speed * dt;
+                    l.y += (Math.sin(l.angle)) * l.speed * dt;
+                }
             }
 
             l.animTimer += dt;
@@ -200,11 +215,20 @@ public class Legions {
             boolean aimed    = remainingError < AIM_TOLERANCE;
             boolean hasAmmo  = l.ammo > 0;
 
-            if (l.fireTimer <= 0 && inRange && onScreen && aimed && hasAmmo) {
-                shoot(l);
-                l.ammo--;
-                l.fireTimer = FIRE_DELAY[l.type];
+            if (l.type == 1) {
+                if (l.fireTimer <= 0 && inRange && aimed && hasAmmo) {
+                    shoot(l);
+                    l.ammo--;
+                    l.fireTimer = FIRE_DELAY[l.type];
+                }
+            }else {
+                if (l.fireTimer <= 0 && inRange && onScreen && aimed && hasAmmo) {
+                    shoot(l);
+                    l.ammo--;
+                    l.fireTimer = FIRE_DELAY[l.type];
+                }
             }
+            l.concussionTimer -= dt;
         }
 
         // separation so enemies don't stack on one point
@@ -245,44 +269,49 @@ public class Legions {
         double w = SHOT_W[l.type];
         double h = SHOT_H[l.type];        // lufa na przodzie sprite'a (sprite jest zwrócony w prawo)
 
-        if (l.type == 0){
-            shots.add(new FS.Bullets(
-                    muzzleX - w / 2 -10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
-                    muzzleY - h / 2 - 10,
-                    w, h,
-                    dirX * SHOT_SPEED[l.type],
-                    dirY * SHOT_SPEED[l.type],
-                    SHOT_DAMAGE[l.type]
-            ));
+        if(!l.concussed) {
+            if (l.type == 0) {
+                shots.add(new FS.Bullets(
+                        muzzleX - w / 2 - 10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                        muzzleY - h / 2 - 10,
+                        w, h,
+                        dirX * SHOT_SPEED[l.type],
+                        dirY * SHOT_SPEED[l.type],
+                        SHOT_DAMAGE[l.type],
+                        2
+                ));
 
-            shots.add(new FS.Bullets(
-                    muzzleX - w / 2 + 10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
-                    muzzleY - h / 2 - 10,
-                    w, h,
-                    dirX * SHOT_SPEED[l.type],
-                    dirY * SHOT_SPEED[l.type],
-                    SHOT_DAMAGE[l.type]
-            ));
-        } else if (l.type == 1) {
-            rockets.add(new Rockets(
-                    muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
-                    muzzleY - h / 2,
-                    w, h,
-                    dirX * SHOT_SPEED[l.type],
-                    dirY * SHOT_SPEED[l.type],
-                    SHOT_DAMAGE[l.type],
-                    0,
-                    0.2
-            ));
-        } else {
-            shots.add(new FS.Bullets(
-                    muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
-                    muzzleY - h / 2,
-                    w, h,
-                    dirX * SHOT_SPEED[l.type],
-                    dirY * SHOT_SPEED[l.type],
-                    SHOT_DAMAGE[l.type]
-            ));
+                shots.add(new FS.Bullets(
+                        muzzleX - w / 2 + 10,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                        muzzleY - h / 2 - 10,
+                        w, h,
+                        dirX * SHOT_SPEED[l.type],
+                        dirY * SHOT_SPEED[l.type],
+                        SHOT_DAMAGE[l.type],
+                        2
+                ));
+            } else if (l.type == 1) {
+                rockets.add(new Rockets(
+                        muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                        muzzleY - h / 2,
+                        w, h,
+                        dirX * SHOT_SPEED[l.type],
+                        dirY * SHOT_SPEED[l.type],
+                        SHOT_DAMAGE[l.type],
+                        0,
+                        0.2
+                ));
+            } else {
+                shots.add(new FS.Bullets(
+                        muzzleX - w / 2,   // x,y to lewy górny róg, więc odejmujemy pół rozmiaru
+                        muzzleY - h / 2,
+                        w, h,
+                        dirX * SHOT_SPEED[l.type],
+                        dirY * SHOT_SPEED[l.type],
+                        SHOT_DAMAGE[l.type],
+                        2
+                ));
+            }
         }
     }
 
@@ -348,19 +377,20 @@ public class Legions {
     /** Returns damage dealt to the player by contact this frame, 0 if none. */
     public double contactDamage(Feldres player) {
         for (Legion l : legion) {
-            if (l.koliduje(player)) return CONTACT_DAMAGE[l.type];
+            if (l.koliduje(player) && !l.concussed) return CONTACT_DAMAGE[l.type];
         }
         return 0;
     }
 
      private void legionDamage(Feldres player,double dt){
         for (Legion l : legion) {
-            if (l.koliduje(player) && hurtTimer <= 0) {
+            if (l.koliduje(player) && hurtTimer <= 0 && !intersects) {
                 l.hp -= 15;
                 hurtTimer = HURT_COOLDOWN;
             } else {
                 hurtTimer -= dt;
             }
+            intersects = l.koliduje(player);
         }
     }
 
