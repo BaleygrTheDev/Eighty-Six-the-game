@@ -155,7 +155,7 @@ public class ESTG extends Application {
             newGame();
         }
 
-        fs.shooting(dt, player, player.angle, cam, klawisze, doWymiany > 0);
+        fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
         legion.removeDead();
 
@@ -265,7 +265,6 @@ public class ESTG extends Application {
 
         // ---------- pociski gracza ----------
         fs.drawBullets(gc, fs.shot, bullet, camX, camY);
-
         // ---------- wrogowie ----------
         for (Legions.Legion l : legion.getEnemies()) {
             double ex = l.x - camX + l.w / 2;
@@ -289,7 +288,7 @@ public class ESTG extends Application {
 
         // ---------- pociski i rakiety wrogów (nad wrogami, żeby były widoczne przy lufie) ----------
         fs.drawBullets(gc, legion.shots, bullet, camX, camY);
-        fs.drawRockets(gc, legion.rockets, bullet, camX, camY);
+        fs.drawBullets(gc, legion.rockets, bullet, camX, camY);
 
         gc.restore();   // koniec skali; od tej chwili rysujemy w pikselach EKRANU
 

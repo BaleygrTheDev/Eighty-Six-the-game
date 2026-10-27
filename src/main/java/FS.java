@@ -2,35 +2,80 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
 
+import java.lang.annotation.Target;
 import java.util.*;
 
 public class FS {
-    Random random = new Random();
+    private final Random random = new Random();
     public static final int MAG = 7;                 // pojemność magazynka każdej broni
+
+    static final int HEAT = 0, APFSDS = 1, ENEMY = 2;
+
     private static final double FIRE_DELAY = 1;   // przerwa między strzałami
-    private static final double BULLET_SPEED = 1200;
+    private static final double[] BULLET_SPEED = {1200, 2000};
+    private static final double[] BULLET_DMG   = {0, 45};  // indeks = typ pocisku
+    private static final double BULLET_W = 10, BULLET_H = 5;
     private static final double MUZZLE = 45;
-    static final double[] CONCUSION_TIME = {0.1, 0.8, 0.3};
+    private static final double SPEED_FALLOFF = 750;          // utrata obrażeń na SEKUNDĘ lotu
+    private static final double MIN_SPEED = 500;               // poniżej tego obrażenia nie spadają
+    private static final double CULL_MARGIN = 100;         // dalej od ekranu niż tyle pocisk jest usuwany
+    static final double[] CONCUSSION_TIME = {0.1, 0.8, 0.3};
 
     static class Bullets {
         double x, y, w, h;
-        double vx, vy;
+        double speed;
         double dmg;
         double prevX, prevY;
-        int type;
+        final int type;
+
+        private double angle;
+        private double cos, sin;
+        private Set<Object> hitTargets;
 
         Bullets(double x, double y, double w, double h,
-                double vx, double vy, double dmg, int type) {
+                double angle, double speed, double dmg, int type) {
             this.x = x;
             this.y = y;
             this.w = w;
             this.h = h;
-            this.vx = vx;
-            this.vy = vy;
+            this.speed = speed;
             this.dmg = dmg;
             this.prevX = x;
             this.prevY = y;
             this.type = type;
+            setAngle(angle);
+        }
+
+        double getAngle() {return angle;}
+
+        void setAngle(double angle){
+            this.angle = angle;
+            this.cos = Math.cos(angle);
+            this.sin = Math.sin(angle);
+        }
+
+        void move(double dt){
+            prevX = x;
+            prevY = y;
+            x += cos * speed * dt;
+            y += sin * speed * dt;
+        }
+
+        boolean hits(Feldres t) {
+            double left   = Math.min(prevX, x);
+            double right  = Math.max(prevX, x) + w;
+            double top    = Math.min(prevY, y);
+            double bottom = Math.max(prevY, y) + h;
+            return left < t.x + t.w && right > t.x && top < t.y + t.h && bottom > t.y;
+        }
+
+        boolean alreadyHit(Object target){
+            return hitTargets != null && hitTargets.contains(target);
+        }
+
+        void markHit(Object target){
+            if (hitTargets == null) hitTargets = new HashSet<>();
+            hitTargets.add(target);
         }
     }
 
@@ -66,8 +111,6 @@ public class FS {
         return heat == MAG && apfsds == MAG;
     }
 
-    ;
-
     public void refill() {
         heat = MAG;
         apfsds = MAG;
@@ -85,144 +128,93 @@ public class FS {
      * @param swapping czy trwa wymiana magazynków (wtedy nie wolno strzelać)
      */
 
-    public void shooting(double dt, Feldres player, double angle,
-                         Cam cam, Set<KeyCode> keys, boolean swapping) {
+    public void shooting(double dt, Feldres player, double angle, Cam cam, boolean swapping) {
         untilFire = Math.max(0, untilFire - dt);
 
         if (untilFire <= 0 && !swapping) {
-            double playerX = player.x + player.w / 2;
-            double playerY = player.y + player.h / 2;
-
             // Tworzenie pocisków podczas trzymania spacji
             if (shootsHeat && heat > 0) {
-                shot.add(newBullet(playerX, playerY, angle, 0, 0));
-
-                untilFire = FIRE_DELAY;
+                fire(player, angle, HEAT);
                 heat -= 1;
             } else if (shootsApfsds && apfsds > 0) {
-
-                shot.add(newBullet(playerX, playerY, angle, 45, 1));
-
-                untilFire = FIRE_DELAY;
+                fire(player, angle, APFSDS);
                 apfsds -= 1;
             }
         }
-        moveBullet(shot, dt, cam);
+        moveBullets(dt, cam);
     }
 
-    public void moveBullet(List<Bullets> list, double dt, Cam cam) {
-        for (int i = list.size() - 1; i >= 0; i--) {
-            Bullets b = list.get(i);
+    public void fire(Feldres player, double angle, int type){
+        double cx = player.x + player.w / 2;
+        double cy = player.y + player.h / 2;
 
-            b.prevX = b.x;
-            b.prevY = b.y;
-            b.x += b.vx * dt;
-            b.y += b.vy * dt;
-            b.dmg -= (double) 30 / 60;
-            b.dmg = Math.max(1, b.dmg);
+        shot.add(new Bullets(
+                cx + Math.cos(angle) * MUZZLE - BULLET_W / 2,    // x,y to lewy górny róg
+                cy + Math.sin(angle) * MUZZLE - BULLET_H / 2,
+                BULLET_W, BULLET_H,
+                angle, BULLET_SPEED[type], BULLET_DMG[type], type
+        ));
+        untilFire = FIRE_DELAY;
+    }
 
-            // Usuwanie pocisków daleko poza widocznym ekranem
-            if (cam.outside(b.x, b.y, 200)) {
-                list.remove(i);
+    public void moveBullets(double dt, Cam cam) {
+        shot.removeIf(b -> {
+            b.move(dt);
+            if (b.type == APFSDS){
+                b.speed = Math.max(MIN_SPEED, b.speed - SPEED_FALLOFF * dt);
+                b.dmg = BULLET_DMG[1] * b.speed / BULLET_SPEED[1];
             }
-        }
+            return cam.outside(b.x, b.y, CULL_MARGIN);
+        });
     }
 
-    public Bullets newBullet(double playerX, double playerY, double angle, double dmg, int type) {
-        double dirX = Math.cos(angle);
-        double dirY = Math.sin(angle);
-
-        return new Bullets(
-                playerX + dirX * MUZZLE - 5,
-                playerY + dirY * MUZZLE - 2.5,
-                10,
-                5,
-                dirX * BULLET_SPEED,
-                dirY * BULLET_SPEED,
-                dmg,
-                type
-        );
-    }
-
-    public void drawBullets(GraphicsContext gc, List<Bullets> lista, Image obraz,
+    public void drawBullets(GraphicsContext gc, List<? extends Bullets> lista, Image obraz,
                             double camX, double camY) {
         for (Bullets b : lista) {
-            double katPocisku = Math.toDegrees(Math.atan2(b.vy, b.vx));
-
             gc.save();
             gc.translate(b.x - camX + b.w / 2, b.y - camY + b.h / 2);
-            gc.rotate(katPocisku);
-            gc.drawImage(obraz, -b.w / 2, -b.h / 2, b.w, b.h);
-            gc.restore();
-        }
-    }
-
-    public void drawRockets(GraphicsContext gc, List<Legions.Rockets> lista, Image obraz,
-                            double camX, double camY) {
-        for (Legions.Rockets b : lista) {
-            double katPocisku = Math.toDegrees(Math.atan2(b.vy, b.vx));
-
-            gc.save();
-            gc.translate(b.x - camX + b.w / 2, b.y - camY + b.h / 2);
-            gc.rotate(katPocisku);
+            gc.rotate(Math.toDegrees(b.getAngle()));
             gc.drawImage(obraz, -b.w / 2, -b.h / 2, b.w, b.h);
             gc.restore();
         }
     }
 
     public void hitEnemies(List<Legions.Legion> legion) {
-        hitList(shot, legion);
+        shot.removeIf(b -> resolveHit(b, legion));
     }
 
-    private void hitList(List<Bullets> list, List<Legions.Legion> legion) {
-        for (int i = list.size() - 1; i >= 0; i--) {
-            Bullets b = list.get(i);
+    /** @return true, jeśli pocisk został zużyty i trzeba go usunąć. */
 
-            // rectangle covering the whole path travelled this frame
-            double left = Math.min(b.prevX, b.x);
-            double right = Math.max(b.prevX, b.x) + b.w;
-            double top = Math.min(b.prevY, b.y);
-            double bottom = Math.max(b.prevY, b.y) + b.h;
+    private boolean resolveHit(Bullets b, List<Legions.Legion> legion) {
+        for (Legions.Legion l : legion) {
+            if (l.hp <= 0 || b.alreadyHit(l) || !b.hits(l)) continue;
 
-            for (Legions.Legion l : legion) {
-                if (l.hp <= 0) continue;
-
-                boolean hit = left < l.x + l.w && right > l.x
-                        && top < l.y + l.h && bottom > l.y;
-
-                if (hit) {
-                    if (l.type == 2) {
-                        if (b.type == 1) {
-                            l.hp -= b.dmg;
-                            l.concussionTimer = CONCUSION_TIME[l.type];
-                        }
-                        list.remove(i);
-                        break;
-                    } else if (l.type == 1) {
-                        if (b.type == 0){
-                            int pen = random.nextInt(3);
-                            if(pen == 0){ l.hp = 0; }
-                        }else {
-                            l.hp -= b.dmg;
-                            l.concussionTimer = CONCUSION_TIME[l.type];
-                        }
-                        list.remove(i);
-                        break;
+            switch (l.type) {
+                case Legions.LOWE:
+                    if (b.type == APFSDS) damage(l, b.dmg);
+                    return true;
+                case Legions.GRAUWOLF:
+                    if (b.type == HEAT) {
+                        if(random.nextInt(3) == 0) l.hp = 0;
                     } else {
-                        if (b.type == 1){
-                            l.hp -= Math.ceil(b.dmg / 15);
-                            l.concussionTimer = CONCUSION_TIME[l.type];
-                        }else {
-                            l.hp = 0;
-                            list.remove(i);
-                        }
-                        break;
+                        damage(l, b.dmg);
                     }
-                }
+                    return true;
+                default:
+                    if (b.type == HEAT) {
+                        l.hp = 0;
+                        return true;
+                    }
+                    damage(l, b.dmg / 15);
+                    b.markHit(l);
+                    return false;
             }
         }
+        return false;
+    }
+
+    private void damage(Legions.Legion l, double amount){
+        l.hp -= amount;
+        l.concussionTimer = CONCUSSION_TIME[l.type];
     }
 }
-//l.hp -= b.dmg;
-//list.remove(i);
-//break;
