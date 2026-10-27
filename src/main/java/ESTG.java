@@ -30,6 +30,7 @@ public class ESTG extends Application {
     private final Legions legion = new Legions();
     private FS fs = new FS();
     private final Movement movement = new Movement(myszX, myszY, klawisze);
+    private final Explosions explosions = new Explosions();
 
     private Feldres player;
     private Feldres fido;
@@ -77,6 +78,7 @@ public class ESTG extends Application {
         rng.newSeed();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
         movement.reset();
+        explosions.clear();
     }
 
     private void fidoUpdate(double dt) {
@@ -157,7 +159,7 @@ public class ESTG extends Application {
 
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
-        legion.removeDead();
+        legion.removeDead(explosions);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
         if (hurtTimer <= 0) {
@@ -181,6 +183,7 @@ public class ESTG extends Application {
         movement.update(dt, player, cam);
         aktualizujAnimacje(dt, movement.getLength());
         legion.update(dt, player, cam);
+        explosions.update(dt);
     }
 
     private void render(GraphicsContext gc) {
@@ -289,6 +292,8 @@ public class ESTG extends Application {
         // ---------- pociski i rakiety wrogów (nad wrogami, żeby były widoczne przy lufie) ----------
         fs.drawBullets(gc, legion.shots, bullet, camX, camY);
         fs.drawBullets(gc, legion.rockets, bullet, camX, camY);
+
+        explosions.draw(gc, camX, camY);
 
         gc.restore();   // koniec skali; od tej chwili rysujemy w pikselach EKRANU
 

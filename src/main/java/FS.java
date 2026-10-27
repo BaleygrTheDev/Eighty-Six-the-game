@@ -16,10 +16,12 @@ public class FS {
     private static final double[] BULLET_DMG   = {0, 45};  // indeks = typ pocisku
     private static final double BULLET_W = 10, BULLET_H = 5;
     private static final double MUZZLE = 45;
-    private static final double SPEED_FALLOFF = 750;          // utrata obrażeń na SEKUNDĘ lotu
+    private static final double SPEED_FALLOFF = 1000;          // utrata obrażeń na SEKUNDĘ lotu
     private static final double MIN_SPEED = 500;               // poniżej tego obrażenia nie spadają
     private static final double CULL_MARGIN = 100;         // dalej od ekranu niż tyle pocisk jest usuwany
     static final double[] CONCUSSION_TIME = {0.1, 0.8, 0.3};
+    static final double BLAST_RADIUS = 200;     // zasięg obrażeń od wybuchu (używa go też rysowanie fali)
+    private static final double BLAST_DAMAGE = 15;
 
     static class Bullets {
         double x, y, w, h;
@@ -191,21 +193,25 @@ public class FS {
 
             switch (l.type) {
                 case Legions.LOWE:
-                    if (b.type == APFSDS) damage(l, b.dmg);
+                    if (b.type == APFSDS) damage(l, b.dmg, b.type);
                     return true;
                 case Legions.GRAUWOLF:
                     if (b.type == HEAT) {
-                        if(random.nextInt(3) == 0) l.hp = 0;
+                        if(random.nextInt(3) == 0) {
+                            kill(l, HEAT);
+                            explosion(l, legion);
+                        }
                     } else {
-                        damage(l, b.dmg);
+                        damage(l, b.dmg, b.type);
                     }
                     return true;
                 default:
                     if (b.type == HEAT) {
-                        l.hp = 0;
+                        kill(l, HEAT);
+                        explosion(l, legion);
                         return true;
                     }
-                    damage(l, b.dmg / 15);
+                    damage(l, b.dmg / 4, b.type);
                     b.markHit(l);
                     return false;
             }
@@ -213,8 +219,31 @@ public class FS {
         return false;
     }
 
-    private void damage(Legions.Legion l, double amount){
+    private void explosion(Legions.Legion o, List<Legions.Legion> legion){
+        double cx = o.x;
+        double cy = o.y;
+
+        for(Legions.Legion l : legion){
+            double targetX = l.x + l.w / 2;
+            double targetY = l.y + l.h / 2;
+            double dx = targetX - cx;
+            double dy = targetY - cy;
+            double distance = Math.hypot(dx, dy);
+
+            if (distance < BLAST_RADIUS){
+                damage(l, BLAST_DAMAGE, l.type);
+            }
+        }
+    }
+
+    private void damage(Legions.Legion l, double amount, int killer){
         l.hp -= amount;
         l.concussionTimer = CONCUSSION_TIME[l.type];
+        if (l.hp <= 0 && l.killedBy == ENEMY) l.killedBy = killer;
+    }
+
+    private void kill(Legions.Legion l, int killer){
+        l.hp = 0;
+        if (l.killedBy == ENEMY) l.killedBy = killer;
     }
 }

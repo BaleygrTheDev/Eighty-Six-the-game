@@ -4,10 +4,10 @@ public class Legions {
     static final int AMEISE = 0, GRAUWOLF = 1, LOWE = 2;
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
-    static final double[] SPEED     = {280, 350, 150};
+    static final double[] SPEED     = {280, 500, 150};
     static final double[] SIZE_W    = {90, 121, 242};
     static final double[] SIZE_H    = {67, 135, 165};
-    static final double[] TURN_RATE = {200, 120, 70};   // degrees per second
+    static final double[] TURN_RATE = {200, 400, 70};   // degrees per second
     static final double[] CONTACT_DAMAGE = {0, 25, 0};
     static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku
     static final double[] FIRE_DELAY  = {0.3, 0.02,  2.0};   // sekundy między strzałami
@@ -21,7 +21,7 @@ public class Legions {
             Math.toRadians(0.5)    // lowe: prawie idealnie
     };
     static final double AIM_TOLERANCE = Math.toRadians(8);// max błąd kąta, przy którym wolno strzelić
-    static  final double ROCKET_LIFE = 3.5;
+    static  final double ROCKET_LIFE = 5;
     static final double TWIN_GUN_OFFSET = 10;               // Ameise: odstęp każdej z dwóch luf od osi
     static final double HOLD_SPEED = 1;                     // "prawie stoi" (Löwe/Grauwolf w pozycji strzeleckiej)
     static final double LOWE_HOLD_DISTANCE = 800;
@@ -47,6 +47,7 @@ public class Legions {
         int ammo;
         boolean concussed;
         boolean touching;
+        int killedBy = FS.ENEMY;
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
@@ -302,7 +303,7 @@ public class Legions {
     public void updateRockets(double dt, Cam cam, Feldres player){
         double playerX = player.x + player.w / 2;
         double playerY = player.y + player.h / 2;
-        double maxStep = Math.toRadians(70) * dt;
+        double maxStep = Math.toRadians(ROCKET_TURN_RATE) * dt;
 
         rockets.removeIf(r ->{
             if(r.delay <= 0) {
@@ -320,8 +321,13 @@ public class Legions {
         });
     }
 
-    public void removeDead() {
-        legion.removeIf(l -> l.hp <= 0);
+    public void removeDead(Explosions fx) {
+        legion.removeIf(l -> {
+            if (l.hp > 0) return false;
+
+            fx.spawn(l.x + l.w / 2, l.y + l.h / 2,l.killedBy, Math.max(l.w, l.h));
+            return true;
+        });
     }
 
     /** Returns damage dealt to the player by contact this frame, 0 if none. */
