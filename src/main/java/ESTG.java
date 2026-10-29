@@ -31,6 +31,7 @@ public class ESTG extends Application {
     private FS fs = new FS();
     private final Movement movement = new Movement(myszX, myszY, klawisze);
     private final Explosions explosions = new Explosions();
+    private final Obstacles obstacles = new Obstacles();
 
     private Feldres player;
     private Feldres fido;
@@ -38,7 +39,7 @@ public class ESTG extends Application {
 
     private  final double wymiana = 5;
     private double doWymiany = 0;
-    static final double PLAYER_MAX_HP = 100;
+    static final double PLAYER_MAX_HP = Integer.MAX_VALUE;
     static final double HURT_COOLDOWN = 0.5;
     private double hurtTimer = 0;
 
@@ -58,6 +59,11 @@ public class ESTG extends Application {
             load( "/ameise walk.png"),
             load( "/grauwolf walk.png"),
             load( "/lowe walk.png")
+    };
+    private final Image[] deadLegion = {
+            load("/dead ameise.png"),
+            load("/dead grauwolf.png"),
+            load("/dead lowe.png")
     };
 
     private Image load(String file){
@@ -79,6 +85,7 @@ public class ESTG extends Application {
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
         movement.reset();
         explosions.clear();
+        obstacles.delete();
     }
 
     private void fidoUpdate(double dt) {
@@ -159,7 +166,7 @@ public class ESTG extends Application {
 
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
-        legion.removeDead(explosions);
+        legion.removeDead(explosions, obstacles);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
         if (hurtTimer <= 0) {
@@ -180,10 +187,12 @@ public class ESTG extends Application {
         fidoUpdate(dt);
         movement.setMouse(myszX, myszY);
         movement.setDoWymiany(doWymiany);
-        movement.update(dt, player, cam);
+        movement.update(dt, player, cam, obstacles.getCarcas());
         aktualizujAnimacje(dt, movement.getLength());
         legion.update(dt, player, cam);
         explosions.update(dt);
+        obstacles.setRound(legion.getRound());
+        obstacles.expiration();
     }
 
     private void render(GraphicsContext gc) {
@@ -226,6 +235,8 @@ public class ESTG extends Application {
                 gc.restore();
             }
         }
+
+        obstacles.drawCarcasses(gc, obstacles.getCarcas(), deadLegion, camX, camY);
 
         // ---------- gracz ----------
         double cx = player.x - camX + player.w / 2;

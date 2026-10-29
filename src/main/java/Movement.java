@@ -1,5 +1,6 @@
 import javafx.scene.input.KeyCode;
 
+import java.util.List;
 import java.util.Set;
 
 public class Movement {
@@ -40,9 +41,9 @@ public class Movement {
         this.mouseY = mouseY;
     }
 
-    public void update(double dt, Feldres player, Cam cam){
+    public void update(double dt, Feldres player, Cam cam, List<Obstacles.Obstacle> obstacles){
         updatePlayerAngle(dt, player, cam);
-        updatePlayerPosition(dt, player);
+        updatePlayerPosition(dt, player, obstacles);
     }
 
     public void reset() {
@@ -73,7 +74,7 @@ public class Movement {
         aimX = graczX + Math.cos(player.angle) * distance;
         aimY = graczY + Math.sin(player.angle) * distance;
     }
-    public void updatePlayerPosition(double dt, Feldres player){
+    public void updatePlayerPosition(double dt, Feldres player, List<Obstacles.Obstacle> obstacles){
         double kierunekX = 0;
         double kierunekY = 0;
 
@@ -85,6 +86,7 @@ public class Movement {
         // Ruch względem obrotu gracza
         double ruchX = Math.cos(player.angle) * kierunekY - Math.sin(player.angle) * kierunekX;
         double ruchY = Math.sin(player.angle) * kierunekY + Math.cos(player.angle) * kierunekX;
+        boolean dash = false;
 
         // Normalizacja ruchu po przekątnej
         length = Math.sqrt(ruchX * ruchX + ruchY * ruchY);
@@ -103,7 +105,7 @@ public class Movement {
                 dashTimer -= krok;
             }
 
-            boolean dash = klawisze.contains(KeyCode.SPACE);
+            dash = klawisze.contains(KeyCode.SPACE);
 
             if (dashCooldown == 0 && dash && !dashHolding) {
                 dashTimer = dashTime;
@@ -113,5 +115,22 @@ public class Movement {
         }
 
         dashCooldown = Math.max(0, dashCooldown - dt);
+
+        for (Obstacles.Obstacle o : obstacles) {
+            double px = player.x + player.w / 2, py = player.y + player.h / 2;
+            double ox = o.x + o.w / 2, oy = o.y + o.h / 2;
+            double dx = ox - px, dy = oy - py;
+            double distance = Math.hypot(dx, dy);
+            double minDistance = (player.w + o.w) / 3;
+            if (distance < minDistance && distance > 0.0001 && !dash) {
+                double push = (minDistance - distance) / 5;
+                double bias = 0;
+                player.x -= dx / distance * push + bias;
+                player.y -= dy / distance * push + bias;
+                player.speed = 100;
+                o.x += dx / distance * push + bias;
+                o.y += dy / distance * push + bias;
+            }else player.speed = 600;
+        }
     }
 }

@@ -321,11 +321,11 @@ public class Legions {
         });
     }
 
-    public void removeDead(Explosions fx) {
+    public void removeDead(Explosions fx, Obstacles o) {
         legion.removeIf(l -> {
             if (l.hp > 0) return false;
-
             fx.spawn(l.x + l.w / 2, l.y + l.h / 2,l.killedBy, Math.max(l.w, l.h));
+            o.newCarcas(l.x, l.y , l.angle, l.type, getRound());
             return true;
         });
     }
