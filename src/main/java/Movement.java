@@ -41,7 +41,7 @@ public class Movement {
         this.mouseY = mouseY;
     }
 
-    public void update(double dt, Feldres player, Cam cam, List<Obstacles.Obstacle> obstacles){
+    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles){
         updatePlayerAngle(dt, player, cam);
         updatePlayerPosition(dt, player, obstacles);
     }
@@ -74,7 +74,7 @@ public class Movement {
         aimX = graczX + Math.cos(player.angle) * distance;
         aimY = graczY + Math.sin(player.angle) * distance;
     }
-    public void updatePlayerPosition(double dt, Feldres player, List<Obstacles.Obstacle> obstacles){
+    public void updatePlayerPosition(double dt, Feldres player, Obstacles obstacles){
         double kierunekX = 0;
         double kierunekY = 0;
 
@@ -115,22 +115,6 @@ public class Movement {
         }
 
         dashCooldown = Math.max(0, dashCooldown - dt);
-
-        for (Obstacles.Obstacle o : obstacles) {
-            double px = player.x + player.w / 2, py = player.y + player.h / 2;
-            double ox = o.x + o.w / 2, oy = o.y + o.h / 2;
-            double dx = ox - px, dy = oy - py;
-            double distance = Math.hypot(dx, dy);
-            double minDistance = (player.w + o.w) / 3;
-            if (distance < minDistance && distance > 0.0001 && !dash) {
-                double push = (minDistance - distance) / 5;
-                double bias = 0;
-                player.x -= dx / distance * push + bias;
-                player.y -= dy / distance * push + bias;
-                player.speed = 100;
-                o.x += dx / distance * push + bias;
-                o.y += dy / distance * push + bias;
-            }else player.speed = 600;
-        }
+        obstacles.colision(dt, player, dash, ESTG.PLAYER_SPEED);
     }
 }

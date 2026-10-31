@@ -1,5 +1,5 @@
-public class Feldres {
-    double x, y, w, h, hp, angle, speed, turnRate, animTimer;
+public class Feldres extends Object{
+    double hp, turnRate, animTimer;
     int frame;
 
     Feldres(double x, double y, double w, double h, double hp, double angle,
@@ -8,7 +8,7 @@ public class Feldres {
         this.speed = speed; this.turnRate = turnRate; this.animTimer = animTimer; this.frame = frame;
     }
 
-    boolean koliduje(Feldres b) {
+    boolean koliduje(Object b) {
         return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
     }
 }

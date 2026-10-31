@@ -23,14 +23,10 @@ public class FS {
     static final double BLAST_RADIUS = 200;     // zasięg obrażeń od wybuchu (używa go też rysowanie fali)
     private static final double BLAST_DAMAGE = 15;
 
-    static class Bullets {
-        double x, y, w, h;
-        double speed;
+    static class Bullets extends Object{
         double dmg;
         double prevX, prevY;
         final int type;
-
-        private double angle;
         private double cos, sin;
         private Set<Object> hitTargets;
 
@@ -184,6 +180,8 @@ public class FS {
     public void hitEnemies(List<Legions.Legion> legion) {
         shot.removeIf(b -> resolveHit(b, legion));
     }
+
+    public void hitCarcas(double dt, Obstacles obstacle) { shot.removeIf(b -> obstacle.colision(dt, b, false, BULLET_SPEED[b.type])); }
 
     /** @return true, jeśli pocisk został zużyty i trzeba go usunąć. */
 

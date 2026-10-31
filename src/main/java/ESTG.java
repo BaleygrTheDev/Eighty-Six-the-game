@@ -40,6 +40,7 @@ public class ESTG extends Application {
     private  final double wymiana = 5;
     private double doWymiany = 0;
     static final double PLAYER_MAX_HP = Integer.MAX_VALUE;
+    static final double PLAYER_SPEED = 600;
     static final double HURT_COOLDOWN = 0.5;
     private double hurtTimer = 0;
 
@@ -71,7 +72,7 @@ public class ESTG extends Application {
     }
 
     private void newGame() {
-        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, 600, 250, 0, 0);
+        player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, PLAYER_SPEED, 250, 0, 0);
         fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0, 0, 550, 120, 0, 0);
         fs.clearB();
         legion.reset();
@@ -166,6 +167,7 @@ public class ESTG extends Application {
 
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
+        fs.hitCarcas(dt, obstacles);
         legion.removeDead(explosions, obstacles);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
@@ -187,9 +189,9 @@ public class ESTG extends Application {
         fidoUpdate(dt);
         movement.setMouse(myszX, myszY);
         movement.setDoWymiany(doWymiany);
-        movement.update(dt, player, cam, obstacles.getCarcas());
+        movement.update(dt, player, cam, obstacles);
         aktualizujAnimacje(dt, movement.getLength());
-        legion.update(dt, player, cam);
+        legion.update(dt, player, cam, obstacles);
         explosions.update(dt);
         obstacles.setRound(legion.getRound());
         obstacles.expiration();

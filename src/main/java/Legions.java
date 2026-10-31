@@ -97,9 +97,9 @@ public class Legions {
         ramTimer = 0;
     }
 
-    public void update(double dt, Feldres player, Cam cam) {
-        updateEnemies(dt, player, cam);
-        updateShots(dt, cam);
+    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles) {
+        updateEnemies(dt, player, cam, obstacles);
+        updateShots(dt, cam, obstacles);
         updateRockets(dt, cam, player);
         legionDamage(player, dt);
         updateRounds(dt, player, cam);
@@ -161,7 +161,7 @@ public class Legions {
         legion.add(e);
     }
 
-    public void updateEnemies(double dt, Feldres player, Cam cam) {
+    public void updateEnemies(double dt, Feldres player, Cam cam, Obstacles obstacles) {
         double playerX = player.x + player.w / 2;
         double playerY = player.y + player.h / 2;
 
@@ -223,8 +223,8 @@ public class Legions {
 
         // separation so enemies don't stack on one point
         for (int i = 0; i < legion.size(); i++) {
+            Legion a = legion.get(i);
             for (int j = i + 1; j < legion.size(); j++) {
-                Legion a = legion.get(i);
                 Legion b = legion.get(j);
                 double ax = a.x + a.w / 2, ay = a.y + a.h / 2;
                 double bx = b.x + b.w / 2, by = b.y + b.h / 2;
@@ -239,6 +239,7 @@ public class Legions {
                     b.y += dy / distance * push;
                 }
             }
+            obstacles.colision(dt, a, false, SPEED[a.type]);
         }
     }
     private void shoot(Legion l) {
@@ -293,11 +294,12 @@ public class Legions {
         ));
     }
 
-    public void updateShots(double dt, Cam cam) {
+    public void updateShots(double dt, Cam cam, Obstacles obstacle) {
         shots.removeIf(b -> {
            b.move(dt);
            return cam.outside(b.x, b.y, SHOT_CULL_MARGIN);
         });
+        shots.removeIf(b -> obstacle.colision(dt, b, false, 0));
     }
 
     public void updateRockets(double dt, Cam cam, Feldres player){
