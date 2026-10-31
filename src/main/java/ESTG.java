@@ -168,6 +168,7 @@ public class ESTG extends Application {
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
         fs.hitEnemies(legion.getEnemies());
         fs.hitCarcas(dt, obstacles);
+        for(int i = 1; i < obstacles.getCarcas().size(); i++){ obstacles.colision(dt, obstacles.getCarcas().get(i-1), false, 0); }
         legion.removeDead(explosions, obstacles);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
