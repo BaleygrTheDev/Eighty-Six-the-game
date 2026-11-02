@@ -76,8 +76,6 @@ public class Obstacles {
         return colided;
     }
     public void expiration(){
-        for(Obstacle c : carcas){
-            if (c.spawnRound == round - 2) { carcas.remove(c); }
-        }
+        carcas.removeIf(c -> c.spawnRound == round - 2);
     }
 }

@@ -39,7 +39,7 @@ public class ESTG extends Application {
 
     private  final double wymiana = 5;
     private double doWymiany = 0;
-    static final double PLAYER_MAX_HP = Integer.MAX_VALUE;
+    static final double PLAYER_MAX_HP = 100;
     static final double PLAYER_SPEED = 600;
     static final double HURT_COOLDOWN = 0.5;
     private double hurtTimer = 0;

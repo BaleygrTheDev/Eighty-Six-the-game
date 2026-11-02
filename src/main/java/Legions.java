@@ -4,10 +4,10 @@ public class Legions {
     static final int AMEISE = 0, GRAUWOLF = 1, LOWE = 2;
     static final int[]    COST      = {1, 3, 5};
     static final double[] HP        = {15, 30, 45};
-    static final double[] SPEED     = {280, 500, 150};
+    static final double[] SPEED     = {400, 500, 250};
     static final double[] SIZE_W    = {90, 121, 242};
     static final double[] SIZE_H    = {67, 135, 165};
-    static final double[] TURN_RATE = {200, 400, 70};   // degrees per second
+    static final double[] TURN_RATE = {270, 400, 100};   // degrees per second
     static final double[] CONTACT_DAMAGE = {0, 25, 0};
     static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku
     static final double[] FIRE_DELAY  = {0.3, 0.02,  2.0};   // sekundy między strzałami
@@ -34,6 +34,15 @@ public class Legions {
     static final int[] AMMO = {Integer.MAX_VALUE, 6, Integer.MAX_VALUE};
     private double ramTimer = 0;
 
+    static final double AVOID_RANGE = 250;    // od jakiej odległości od powierzchni przeszkody wróg zaczyna ją omijać
+    static final double AVOID_SIDE  = 2.5;    // siła skrętu bokiem (wzdłuż przeszkody)
+    static final double AVOID_BACK  = 0.5;    // siła odpychania wprost od przeszkody
+    static final int    GROUP_MIN = 3;                   // ile Ameise musi być razem, żeby zaatakować
+    static final double GROUP_RADIUS = 250;              // "razem" = w tym promieniu od siebie
+    static final double SEEK_RADIUS = 700;               // z jakiej odległości uśredniają położenie reszty
+    static final double GATHER_ARRIVE_DIST = 200;        // tyle przed punktem zbiórki zaczynają zwalniać
+    static final double GATHER_TIMEOUT = 10;             // po tylu sekundach bez grupy i tak atakują
+    static final double GATHER_PLAYER_CLEARANCE = 800;   // w trybie zbierania omijają gracza z takiej odległości
     static final double ROUND_BREAK        = 3.0;       // seconds between rounds
     static final double SPAWN_RADIUS_MIN   = 1000;
     static final double SPAWN_RADIUS_RANGE = 300;
@@ -48,6 +57,9 @@ public class Legions {
         boolean concussed;
         boolean touching;
         int killedBy = FS.ENEMY;
+        boolean attacking;        // <-- nowe (Ameise): true = biegnie na gracza i strzela
+        double gatherTimer;       // <-- nowe: ile sekund już zbiera
+        double gatherX, gatherY;  // <-- nowe: punkt zbiórki (środek reszty grupy)
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
@@ -161,7 +173,105 @@ public class Legions {
         legion.add(e);
     }
 
+    private void updateSwarm(double dt) {
+        int total = 0;
+        for (Legion l : legion) {
+            if (l.type == AMEISE) total++;
+        }
+        int need = Math.min(GROUP_MIN, total);        // gdy zostało mniej, wystarczy tyle, ile jest
+
+        for (Legion a : legion) {
+            if (a.type != AMEISE || a.attacking) continue;
+
+            double ax = a.x + a.w / 2;
+            double ay = a.y + a.h / 2;
+
+            int near = 1;                              // liczymy też siebie
+            double sumX = 0, sumY = 0;
+            int seekCount = 0;
+            Legion nearest = null;
+            double nearestDist = Double.MAX_VALUE;
+
+            for (Legion b : legion) {
+                if (b == a || b.type != AMEISE) continue;
+                double bx = b.x + b.w / 2;
+                double by = b.y + b.h / 2;
+                double d = Math.hypot(bx - ax, by - ay);
+
+                if (d < GROUP_RADIUS) near++;
+                if (d < SEEK_RADIUS) {
+                    sumX += bx;
+                    sumY += by;
+                    seekCount++;
+                }
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearest = b;
+                }
+            }
+
+            a.gatherTimer += dt;
+
+            if (near >= need || nearest == null || a.gatherTimer >= GATHER_TIMEOUT) {
+                // grupa gotowa (albo koniec czekania): ta Ameise i wszyscy w jej pobliżu atakują razem
+                a.attacking = true;
+                for (Legion b : legion) {
+                    if (b.type != AMEISE) continue;
+                    double d = Math.hypot(b.x + b.w / 2 - ax, b.y + b.h / 2 - ay);
+                    if (d < GROUP_RADIUS) b.attacking = true;
+                }
+                continue;
+            }
+
+            // jeszcze nie ma grupy: punkt zbiórki = środek Ameise w pobliżu, a gdy ich nie ma, najbliższa Ameise
+            if (seekCount > 0) {
+                a.gatherX = sumX / seekCount;
+                a.gatherY = sumY / seekCount;
+            } else {
+                a.gatherX = nearest.x + nearest.w / 2;
+                a.gatherY = nearest.y + nearest.h / 2;
+            }
+        }
+    }
+
+    private double steerAngle(Legion l, double dirX, double dirY, Obstacles obstacles) {
+        double ex = l.x + l.w / 2;
+        double ey = l.y + l.h / 2;
+        double headingX = Math.cos(l.angle);
+        double headingY = Math.sin(l.angle);
+        double radius = (l.w + l.h) / 4;               // taki sam promień jak w Obstacles.colision
+
+        double sumX = dirX;                            // zaczynamy od kierunku na gracza
+        double sumY = dirY;
+
+        for (Obstacles.Obstacle o : obstacles.getCarcas()) {
+            double ox = o.x + o.w / 2 - ex;
+            double oy = o.y + o.h / 2 - ey;
+            double od = Math.hypot(ox, oy);
+            if (od < 0.0001) continue;
+
+            double gap = od - radius - (o.w + o.h) / 4;      // odległość między powierzchniami
+            if (gap >= AVOID_RANGE) continue;                // za daleko, ignoruj
+
+            double nx = ox / od;                             // kierunek do przeszkody
+            double ny = oy / od;
+            if (nx * headingX + ny * headingY <= 0) continue;   // przeszkoda za plecami
+
+            double weight = 1 - Math.max(0, gap) / AVOID_RANGE; // 0 daleko -> 1 przy styku
+
+            // po której stronie przeszkody jest gracz (znak iloczynu wektorowego)
+            double side = (nx * dirY - ny * dirX) >= 0 ? 1 : -1;
+
+            // bok (prostopadle do kierunku na przeszkodę) + odpychanie wprost od niej
+            sumX += weight * (-ny * side * AVOID_SIDE - nx * AVOID_BACK);
+            sumY += weight * ( nx * side * AVOID_SIDE - ny * AVOID_BACK);
+        }
+        return Math.atan2(sumY, sumX);
+    }
+
     public void updateEnemies(double dt, Feldres player, Cam cam, Obstacles obstacles) {
+        updateSwarm(dt);
+
         double playerX = player.x + player.w / 2;
         double playerY = player.y + player.h / 2;
 
@@ -176,7 +286,39 @@ public class Legions {
             l.concussed = l.concussionTimer > 0;
             l.concussionTimer = Math.max(0, l.concussionTimer - dt);
 
-            double targetAngle = Math.atan2(dy, dx);
+            double dirX = dx / distance;
+            double dirY = dy / distance;
+            double speedFactor = 1;
+
+            if (l.type == AMEISE && !l.attacking) {
+                // tryb zbierania: do punktu zbiórki zamiast na gracza
+                double gx = l.gatherX - ex;
+                double gy = l.gatherY - ey;
+                double gd = Math.hypot(gx, gy);
+                if (gd > 0.0001) {
+                    dirX = gx / gd;
+                    dirY = gy / gd;
+                } else {
+                    dirX = Math.cos(l.angle);              // jest w punkcie zbiórki: nie zmieniaj kierunku
+                    dirY = Math.sin(l.angle);
+                }
+                speedFactor = Math.min(1, gd / GATHER_ARRIVE_DIST);    // zwalnia przy dojściu do grupy
+
+                // nie biegnij przez gracza, żeby dołączyć do grupy po jego drugiej stronie
+                if (distance < GATHER_PLAYER_CLEARANCE) {
+                    double pxn = dx / distance;            // kierunek do gracza
+                    double pyn = dy / distance;
+                    if (pxn * dirX + pyn * dirY > 0) {     // gracz leży mniej więcej na drodze
+                        double w = 1 - distance / GATHER_PLAYER_CLEARANCE;
+                        double side = (pxn * dirY - pyn * dirX) >= 0 ? 1 : -1;
+                        dirX += w * (-pyn * side * 2 - pxn);
+                        dirY += w * ( pxn * side * 2 - pyn);
+                    }
+                }
+            }
+
+
+            double targetAngle = steerAngle(l, dirX, dirY, obstacles);
 
             double difference = targetAngle - l.angle;
             difference = Math.atan2(Math.sin(difference), Math.cos(difference));
@@ -187,11 +329,14 @@ public class Legions {
 
             if (!l.concussed){
                 double moveSpeed = l.speed;
-                if (l.type == LOWE && distance < LOWE_HOLD_DISTANCE){
+                if (l.type == LOWE && distance <= LOWE_HOLD_DISTANCE && distance > 400){
                     moveSpeed = HOLD_SPEED;
-                }else if (l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
+                } else if (l.type == LOWE && distance <= 400) {
+                    moveSpeed = -moveSpeed;
+                } else if (l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
                     moveSpeed = HOLD_SPEED;
                 }
+                moveSpeed *= speedFactor;
                 l.x += (Math.cos(l.angle)) * moveSpeed * dt;
                 l.y += (Math.sin(l.angle)) * moveSpeed * dt;
             }
@@ -209,11 +354,15 @@ public class Legions {
             // ile jeszcze brakuje do idealnego namierzenia (po tym, jak już się obrócił w tej klatce)
             double remainingError = Math.abs(difference - step);
 
-            boolean aimed = Math.abs(difference - step) < AIM_TOLERANCE;
+            double aimDiff = Math.atan2(dy, dx) - l.angle;                         // l.angle jest już po obrocie
+            aimDiff = Math.atan2(Math.sin(aimDiff), Math.cos(aimDiff));
+            boolean aimed = Math.abs(aimDiff) < AIM_TOLERANCE;
             boolean inRange = distance <= SHOT_RANGE[l.type];
             boolean visible = l.type == GRAUWOLF || !cam.outside(l.x + l.w / 2, l.y + l.h / 2, 0);
 
-            if (l.fireTimer <= 0 && !l.concussed && l.ammo > 0 && inRange && aimed && visible) {
+            boolean mayShoot = l.type != AMEISE || l.attacking;
+
+            if (l.fireTimer <= 0 && !l.concussed && l.ammo > 0 && inRange && aimed && visible && mayShoot) {
                 shoot(l);
                 l.ammo--;
                 l.fireTimer = FIRE_DELAY[l.type];
