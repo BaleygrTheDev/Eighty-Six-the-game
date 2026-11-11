@@ -9,7 +9,7 @@ public class Legions {
     static final double[] SIZE_H    = {67, 135, 165};
     static final double[] TURN_RATE = {270, 400, 100};   // degrees per second
     static final double[] CONTACT_DAMAGE = {0, 25, 0};
-    static final double[] SHOT_DAMAGE = {2,   30,    50};    // obrażenia jednego pocisku
+    static final double[] SHOT_DAMAGE = {2,   15,    50};    // obrażenia jednego pocisku
     static final double[] FIRE_DELAY  = {0.3, 0.02,  2.0};   // sekundy między strzałami
     static final double[] SHOT_SPEED  = {650, 700,  500};   // px/s
     static final double[] SHOT_RANGE  = {800, 2200,  1300};  // max dystans do gracza, z którego strzela
@@ -33,6 +33,7 @@ public class Legions {
     static final double RAM_COOLDOWN = 1;
     static final int[] AMMO = {Integer.MAX_VALUE, 6, Integer.MAX_VALUE};
     private double ramTimer = 0;
+    private double lastSeenX, lastSeenY;     // gdzie ostatnio widziano gracza (poza okopem)
 
     static final double AVOID_RANGE = 250;    // od jakiej odległości od powierzchni przeszkody wróg zaczyna ją omijać
     static final double AVOID_SIDE  = 2.5;    // siła skrętu bokiem (wzdłuż przeszkody)
@@ -42,7 +43,14 @@ public class Legions {
     static final double SEEK_RADIUS = 700;               // z jakiej odległości uśredniają położenie reszty
     static final double GATHER_ARRIVE_DIST = 200;        // tyle przed punktem zbiórki zaczynają zwalniać
     static final double GATHER_TIMEOUT = 10;             // po tylu sekundach bez grupy i tak atakują
-    static final double GATHER_PLAYER_CLEARANCE = 800;   // w trybie zbierania omijają gracza z takiej odległości
+    static final double GATHER_PLAYER_CLEARANCE = 800;// w trybie zbierania omijają gracza z takiej odległości
+
+    static final double WANDER_RADIUS = 600;      // promień obszaru wokół ostatnio widzianego miejsca gracza
+    static final double WANDER_MIN_TIME = 2;      // jak długo zmierza do jednego punktu (min)
+    static final double WANDER_MAX_TIME = 4;      // (max)
+    static final double WANDER_REACH = 80;        // tak blisko punktu uznaje, że dotarł
+    static final double WANDER_SPEED = 0.6;       // ułamek normalnej prędkości podczas szukania
+
     static final double ROUND_BREAK        = 3.0;       // seconds between rounds
     static final double SPAWN_RADIUS_MIN   = 1000;
     static final double SPAWN_RADIUS_RANGE = 300;
@@ -60,6 +68,8 @@ public class Legions {
         boolean attacking;        // <-- nowe (Ameise): true = biegnie na gracza i strzela
         double gatherTimer;       // <-- nowe: ile sekund już zbiera
         double gatherX, gatherY;  // <-- nowe: punkt zbiórki (środek reszty grupy)
+        double wanderX, wanderY;     // aktualny punkt patrolu
+        double wanderTimer;          // ile sekund do wylosowania nowego (<= 0 oznacza: wylosuj teraz)
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
@@ -109,8 +119,8 @@ public class Legions {
         ramTimer = 0;
     }
 
-    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles) {
-        updateEnemies(dt, player, cam, obstacles);
+    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles, boolean playerTrenched) {
+        updateEnemies(dt, player, cam, obstacles, playerTrenched);
         updateShots(dt, cam, obstacles);
         updateRockets(dt, cam, player);
         legionDamage(player, dt);
@@ -233,7 +243,13 @@ public class Legions {
             }
         }
     }
-
+    private void pickWanderPoint(Legion l) {
+        double a = random.nextDouble() * Math.PI * 2;
+        double r = Math.sqrt(random.nextDouble()) * WANDER_RADIUS;     // sqrt: równomiernie po powierzchni koła, nie skupione w środku
+        l.wanderX = lastSeenX + Math.cos(a) * r;
+        l.wanderY = lastSeenY + Math.sin(a) * r;
+        l.wanderTimer = WANDER_MIN_TIME + random.nextDouble() * (WANDER_MAX_TIME - WANDER_MIN_TIME);
+    }
     private double steerAngle(Legion l, double dirX, double dirY, Obstacles obstacles) {
         double ex = l.x + l.w / 2;
         double ey = l.y + l.h / 2;
@@ -269,17 +285,23 @@ public class Legions {
         return Math.atan2(sumY, sumX);
     }
 
-    public void updateEnemies(double dt, Feldres player, Cam cam, Obstacles obstacles) {
+    public void updateEnemies(double dt, Feldres player, Cam cam, Obstacles obstacles, boolean playerTrenched) {
         updateSwarm(dt);
 
         double playerX = player.x + player.w / 2;
         double playerY = player.y + player.h / 2;
+
+        if (!playerTrenched) {
+            lastSeenX = playerX;
+            lastSeenY = playerY;
+        }
 
         for (Legion l : legion) {
             double ex = l.x + l.w / 2;
             double ey = l.y + l.h / 2;
             double dx = playerX - ex;
             double dy = playerY - ey;
+
             double distance = Math.hypot(dx, dy);
             if (distance < 0.0001) continue;
 
@@ -288,9 +310,30 @@ public class Legions {
 
             double dirX = dx / distance;
             double dirY = dy / distance;
+
             double speedFactor = 1;
 
-            if (l.type == AMEISE && !l.attacking) {
+            if (!playerTrenched) l.wanderTimer = 0;     // gracz widoczny: przy następnym ukryciu losuj od nowa
+
+            if (playerTrenched) {
+                // gracz w okopie: wróg szuka, idąc do losowych punktów wokół ostatnio widzianego miejsca
+                l.wanderTimer -= dt;
+                double wx = l.wanderX - ex;
+                double wy = l.wanderY - ey;
+                double wd = Math.hypot(wx, wy);
+
+                if (l.wanderTimer <= 0 || wd < WANDER_REACH) {
+                    pickWanderPoint(l);
+                    wx = l.wanderX - ex;
+                    wy = l.wanderY - ey;
+                    wd = Math.hypot(wx, wy);
+                }
+                if (wd > 0.0001) {
+                    dirX = wx / wd;
+                    dirY = wy / wd;
+                }
+                speedFactor = WANDER_SPEED;
+            }else if (l.type == AMEISE && !l.attacking) {
                 // tryb zbierania: do punktu zbiórki zamiast na gracza
                 double gx = l.gatherX - ex;
                 double gy = l.gatherY - ey;
@@ -320,6 +363,8 @@ public class Legions {
 
             double targetAngle = steerAngle(l, dirX, dirY, obstacles);
 
+            if (playerTrenched) targetAngle += 5;
+
             double difference = targetAngle - l.angle;
             difference = Math.atan2(Math.sin(difference), Math.cos(difference));
 
@@ -329,11 +374,11 @@ public class Legions {
 
             if (!l.concussed){
                 double moveSpeed = l.speed;
-                if (l.type == LOWE && distance <= LOWE_HOLD_DISTANCE && distance > 400){
+                if (!playerTrenched && l.type == LOWE && distance <= LOWE_HOLD_DISTANCE && distance > 400){
                     moveSpeed = HOLD_SPEED;
-                } else if (l.type == LOWE && distance <= 400) {
+                } else if (!playerTrenched && l.type == LOWE && distance <= 400) {
                     moveSpeed = -moveSpeed;
-                } else if (l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
+                } else if (!playerTrenched && l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
                     moveSpeed = HOLD_SPEED;
                 }
                 moveSpeed *= speedFactor;
@@ -363,9 +408,15 @@ public class Legions {
             boolean mayShoot = l.type != AMEISE || l.attacking;
 
             if (l.fireTimer <= 0 && !l.concussed && l.ammo > 0 && inRange && aimed && visible && mayShoot) {
-                shoot(l);
-                l.ammo--;
-                l.fireTimer = FIRE_DELAY[l.type];
+                if (l.type == GRAUWOLF) {
+                    shoot(l);
+                    l.ammo--;
+                    l.fireTimer = FIRE_DELAY[l.type];
+                }else if(!playerTrenched) {
+                    shoot(l);
+                    l.ammo--;
+                    l.fireTimer = FIRE_DELAY[l.type];
+                }
             }
 
         }

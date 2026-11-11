@@ -126,10 +126,10 @@ public class FS {
      * @param swapping czy trwa wymiana magazynków (wtedy nie wolno strzelać)
      */
 
-    public void shooting(double dt, Feldres player, double angle, Cam cam, boolean swapping) {
+    public void shooting(double dt, Feldres player, double angle, Cam cam, boolean swapping, boolean trenched) {
         untilFire = Math.max(0, untilFire - dt);
 
-        if (untilFire <= 0 && !swapping) {
+        if (untilFire <= 0 && !swapping && !trenched) {
             // Tworzenie pocisków podczas trzymania spacji
             if (shootsHeat && heat > 0) {
                 fire(player, angle, HEAT);

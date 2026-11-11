@@ -23,6 +23,8 @@ public class ESTG extends Application {
     private double myszX = WIDTH / 2;
     private double myszY = HEIGHT / 2;
 
+    private boolean inTrench = false;
+
     private final Set<KeyCode> klawisze = new HashSet<>();
     private final Cam cam = new Cam(WIDTH, HEIGHT);
     private final Radar radar = new Radar(WIDTH, HEIGHT);
@@ -31,7 +33,7 @@ public class ESTG extends Application {
     private FS fs = new FS();
     private final Movement movement = new Movement(myszX, myszY, klawisze);
     private final Explosions explosions = new Explosions();
-    private final Obstacles obstacles = new Obstacles();
+    private final Obstacles obstacles = new Obstacles(rng);
 
     private Feldres player;
     private Feldres fido;
@@ -165,7 +167,7 @@ public class ESTG extends Application {
             newGame();
         }
 
-        fs.shooting(dt, player, player.angle, cam, doWymiany > 0);
+        fs.shooting(dt, player, player.angle, cam, doWymiany > 0, inTrench);
         fs.hitEnemies(legion.getEnemies());
         fs.hitCarcas(dt, obstacles);
         for(int i = 1; i < obstacles.getCarcas().size(); i++){ obstacles.colision(dt, obstacles.getCarcas().get(i-1), false, 0); }
@@ -179,7 +181,7 @@ public class ESTG extends Application {
                 hurtTimer = HURT_COOLDOWN;
             }
         }
-        player.hp -= legion.shotsDamage(player);
+        if(!inTrench) player.hp -= legion.shotsDamage(player);
         player.hp -= legion.rocketsDamage(player);
         if (player.hp <= 0) {
             newGame();
@@ -192,10 +194,11 @@ public class ESTG extends Application {
         movement.setDoWymiany(doWymiany);
         movement.update(dt, player, cam, obstacles);
         aktualizujAnimacje(dt, movement.getLength());
-        legion.update(dt, player, cam, obstacles);
+        legion.update(dt, player, cam, obstacles, inTrench);
         explosions.update(dt);
         obstacles.setRound(legion.getRound());
         obstacles.expiration();
+        inTrench = obstacles.inTrench(player);
     }
 
     private void render(GraphicsContext gc) {
@@ -239,6 +242,7 @@ public class ESTG extends Application {
             }
         }
 
+        obstacles.drawTrenches(gc, cam, WIDTH, HEIGHT);
         obstacles.drawCarcasses(gc, obstacles.getCarcas(), deadLegion, camX, camY);
 
         // ---------- gracz ----------
