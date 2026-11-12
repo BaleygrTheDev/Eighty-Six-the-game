@@ -52,6 +52,7 @@ public class ESTG extends Application {
     private final Image teksturaFido = load("/fido walk.png");
     private final double czasKlatki = 0.12;
     private final Image bullet = load("/HEAT bulet.png");
+    private final Image trench = load("/trench.png");
     private final Image[] tiles = {
             load("/tile1.png"),
             load("/tile4.png"),
@@ -242,7 +243,7 @@ public class ESTG extends Application {
             }
         }
 
-        obstacles.drawTrenches(gc, cam, WIDTH, HEIGHT);
+        obstacles.drawTrenches(gc, cam, WIDTH, HEIGHT, trench);
         obstacles.drawCarcasses(gc, obstacles.getCarcas(), deadLegion, camX, camY);
 
         // ---------- gracz ----------
@@ -376,10 +377,10 @@ public class ESTG extends Application {
         gc.fillRect(myszX + 75, myszY - 75, 20, 150 * Math.max(0, player.hp) / PLAYER_MAX_HP);
 
         // ---------- dach cooldown ----------
-        gc.setFill(Color.BLUE);
-        gc.fillRect(myszX - 95, myszY - 75, 20, 150);
         gc.setFill(Color.DARKGRAY);
-        gc.fillRect(myszX - 95, myszY - 75, 20, 150 * movement.getDashCooldown()*2);
+        gc.fillRect(myszX - 95, myszY - 75, 20, 150);
+        gc.setFill(Color.BLUE);
+        gc.fillRect(myszX - 95, myszY - 75, 20, 150 * movement.getEnergy() / movement.getMAX_ENERGY());
 
         radar.render(gc, player, fido, legion, cam);
 

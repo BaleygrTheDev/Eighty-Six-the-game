@@ -21,7 +21,7 @@ public class Obstacles {
         this.rng = rng;
     }
 
-    static class Obstacle extends Object{
+    static class Obstacle extends Body {
         int type;
         int spawnRound;
 
@@ -54,7 +54,7 @@ public class Obstacles {
     public boolean hasTrench(int cx, int cy) {
         return Math.floorMod(rng.hash(cx, cy), 100) < TRENCH_CHANCE;
     }
-    public boolean inTrench(Object b) {
+    public boolean inTrench(Body b) {
         // okop z komórki cx sięga o TRENCH_W w prawo, więc szukamy też komórek na lewo od ciała
         int cx0 = (int) Math.floor((b.x - TRENCH_W) / TRENCH_CELL);
         int cx1 = (int) Math.floor((b.x + b.w) / TRENCH_CELL);
@@ -84,7 +84,7 @@ public class Obstacles {
             gc.restore();
         }
     }
-    public void drawTrenches(GraphicsContext gc, Cam cam, double width, double height) {
+    public void drawTrenches(GraphicsContext gc, Cam cam, double width, double height, Image trench) {
         double camX = cam.renderX();
         double camY = cam.renderY();
         int x0 = (int) Math.floor(camX / TRENCH_CELL);
@@ -98,37 +98,38 @@ public class Obstacles {
                 int cx = x0 + i;
                 int cy = y0 + j;
                 if (hasTrench(cx, cy)) {
-                    gc.fillRect(cx * TRENCH_CELL - camX, cy * TRENCH_CELL - camY, TRENCH_W, TRENCH_H);
+                    //gc.fillRect(cx * TRENCH_CELL - camX, cy * TRENCH_CELL - camY, TRENCH_W, TRENCH_H);
+                    gc.drawImage(trench, cx * TRENCH_CELL - camX, cy * TRENCH_CELL - camY, TRENCH_W, TRENCH_H);
                 }
             }
         }
     }
-    public boolean colision(double dt, Object object, boolean dash, double objSpeed){
+    public boolean colision(double dt, Body body, boolean dash, double objSpeed){
         boolean slowed = false;
         boolean colided = false;
 
         for (Obstacle o : carcas) {
-            double px = object.x + object.w / 2, py = object.y + object.h / 2;
+            double px = body.x + body.w / 2, py = body.y + body.h / 2;
             double ox = o.x + o.w / 2, oy = o.y + o.h / 2;
             double dx = ox - px, dy = oy - py;
             double distance = Math.hypot(dx, dy);
-            double minDistance = ((object.w + object.h) / 2 + (o.w + o.h) / 2) / 2;
+            double minDistance = ((body.w + body.h) / 2 + (o.w + o.h) / 2) / 2;
             if (distance < minDistance && distance > 0.0001 && !dash) {
                 slowed = true;
                 colided = true;
                 double overLap = minDistance - distance;
                 double separation = overLap * (1 - Math.exp(-SEPARATION_RATE * dt));
                 double shift = separation / 2;
-                object.x -= dx / distance * shift ;
-                object.y -= dy / distance * shift ;
+                body.x -= dx / distance * shift ;
+                body.y -= dy / distance * shift ;
                 o.x += dx / distance * shift ;
                 o.y += dy / distance * shift ;
             }
         }
         if(slowed){
-            object.speed = objSpeed * SLOW;
+            body.speed = objSpeed * SLOW;
         }else if(objSpeed != 0){
-            object.speed = objSpeed;
+            body.speed = objSpeed;
         }
         return colided;
     }

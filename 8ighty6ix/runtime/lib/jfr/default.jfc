@@ -734,7 +734,7 @@
     </event>
 
     <event name="jdk.ObjectAllocationSample">
-      <setting name="enabled" control="object-allocation-enabled">true</setting>
+      <setting name="enabled" control="body-allocation-enabled">true</setting>
       <setting name="throttle" control="allocation-profiling">150/s</setting>
       <setting name="stackTrace">true</setting>
     </event>
@@ -1038,7 +1038,7 @@
         <option label="Maximum" name="maximum">1000000000/s</option>
       </selection>
 
-      <condition name="object-allocation-enabled" true="true" false="false">
+      <condition name="body-allocation-enabled" true="true" false="false">
         <not>
           <test name="allocation-profiling" operator="equal" value="off"/>
         </not>

@@ -1,4 +1,4 @@
-public class Feldres extends Object{
+public class Feldres extends Body {
     double hp, turnRate, animTimer;
     int frame;
 
@@ -8,7 +8,7 @@ public class Feldres extends Object{
         this.speed = speed; this.turnRate = turnRate; this.animTimer = animTimer; this.frame = frame;
     }
 
-    boolean koliduje(Object b) {
+    boolean koliduje(Body b) {
         return x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y;
     }
 }

@@ -142,7 +142,7 @@ Legal Terms
   This  license  grants  a  worldwide, royalty-free,  perpetual  and
   irrevocable right  and license to use,  execute, perform, compile,
   display,  copy,   create  derivative  works   of,  distribute  and
-  sublicense the  FreeType Project (in  both source and  object code
+  sublicense the  FreeType Project (in  both source and  body code
   forms)  and  derivative works  thereof  for  any  purpose; and  to
   authorize others  to exercise  some or all  of the  rights granted
   herein, subject to the following conditions:
@@ -346,7 +346,7 @@ a storage or distribution medium does not bring the other work under
 the scope of this License.
 
   3. You may copy and distribute the Program (or a work based on it,
-under Section 2) in object code or executable form under the terms of
+under Section 2) in body code or executable form under the terms of
 Sections 1 and 2 above provided that you also do one of the following:
 
     a) Accompany it with the complete corresponding machine-readable
@@ -363,7 +363,7 @@ Sections 1 and 2 above provided that you also do one of the following:
     c) Accompany it with the information you received as to the offer
     to distribute corresponding source code.  (This alternative is
     allowed only for noncommercial distribution and only if you
-    received the program in object code or executable form with such
+    received the program in body code or executable form with such
     an offer, in accord with Subsection b above.)
 
 The source code for a work means the preferred form of the work for
@@ -377,11 +377,11 @@ form) with the major components (compiler, kernel, and so on) of the
 operating system on which the executable runs, unless that component
 itself accompanies the executable.
 
-If distribution of executable or object code is made by offering
+If distribution of executable or body code is made by offering
 access to copy from a designated place, then offering equivalent
 access to copy the source code from the same place counts as
 distribution of the source code, even though third parties are not
-compelled to copy the source along with the object code.
+compelled to copy the source along with the body code.
 
   4. You may not copy, modify, sublicense, or distribute the Program
 except as expressly provided under this License.  Any attempt
@@ -585,7 +585,7 @@ libfreetype/src/psaux/pstypes.h
 Copyright (C) 2006-2014 Adobe Systems Incorporated.
 
 This software, and all works of authorship, whether in source or
-object code form as indicated by the copyright notice(s) included
+body code form as indicated by the copyright notice(s) included
 herein (collectively, the "Work") is made available, and may only be
 used, modified, and distributed under the FreeType Project License,
 LICENSE.TXT.  Additionally, subject to the terms and conditions of the

@@ -1,8 +1,6 @@
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
-import javafx.scene.input.KeyCode;
 
-import java.lang.annotation.Target;
 import java.util.*;
 
 public class FS {
@@ -23,12 +21,12 @@ public class FS {
     static final double BLAST_RADIUS = 200;     // zasięg obrażeń od wybuchu (używa go też rysowanie fali)
     private static final double BLAST_DAMAGE = 15;
 
-    static class Bullets extends Object{
+    static class Bullets extends Body {
         double dmg;
         double prevX, prevY;
         final int type;
         private double cos, sin;
-        private Set<Object> hitTargets;
+        private Set<Body> hitTargets;
 
         Bullets(double x, double y, double w, double h,
                 double angle, double speed, double dmg, int type) {
@@ -67,11 +65,11 @@ public class FS {
             return left < t.x + t.w && right > t.x && top < t.y + t.h && bottom > t.y;
         }
 
-        boolean alreadyHit(Object target){
+        boolean alreadyHit(Body target){
             return hitTargets != null && hitTargets.contains(target);
         }
 
-        void markHit(Object target){
+        void markHit(Body target){
             if (hitTargets == null) hitTargets = new HashSet<>();
             hitTargets.add(target);
         }

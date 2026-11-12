@@ -70,6 +70,7 @@ public class Legions {
         double gatherX, gatherY;  // <-- nowe: punkt zbiórki (środek reszty grupy)
         double wanderX, wanderY;     // aktualny punkt patrolu
         double wanderTimer;          // ile sekund do wylosowania nowego (<= 0 oznacza: wylosuj teraz)
+        boolean seePlayer;
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
@@ -305,6 +306,8 @@ public class Legions {
             double distance = Math.hypot(dx, dy);
             if (distance < 0.0001) continue;
 
+            l.seePlayer = !playerTrenched || distance < 400;
+
             l.concussed = l.concussionTimer > 0;
             l.concussionTimer = Math.max(0, l.concussionTimer - dt);
 
@@ -313,9 +316,9 @@ public class Legions {
 
             double speedFactor = 1;
 
-            if (!playerTrenched) l.wanderTimer = 0;     // gracz widoczny: przy następnym ukryciu losuj od nowa
+            if (l.seePlayer) l.wanderTimer = 0;     // gracz widoczny: przy następnym ukryciu losuj od nowa
 
-            if (playerTrenched) {
+            if (!l.seePlayer) {
                 // gracz w okopie: wróg szuka, idąc do losowych punktów wokół ostatnio widzianego miejsca
                 l.wanderTimer -= dt;
                 double wx = l.wanderX - ex;
@@ -363,8 +366,6 @@ public class Legions {
 
             double targetAngle = steerAngle(l, dirX, dirY, obstacles);
 
-            if (playerTrenched) targetAngle += 5;
-
             double difference = targetAngle - l.angle;
             difference = Math.atan2(Math.sin(difference), Math.cos(difference));
 
@@ -374,11 +375,11 @@ public class Legions {
 
             if (!l.concussed){
                 double moveSpeed = l.speed;
-                if (!playerTrenched && l.type == LOWE && distance <= LOWE_HOLD_DISTANCE && distance > 400){
+                if (l.seePlayer && l.type == LOWE && distance <= LOWE_HOLD_DISTANCE && distance > 400){
                     moveSpeed = HOLD_SPEED;
-                } else if (!playerTrenched && l.type == LOWE && distance <= 400) {
+                } else if (l.seePlayer && l.type == LOWE && distance <= 400) {
                     moveSpeed = -moveSpeed;
-                } else if (!playerTrenched && l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
+                } else if (l.seePlayer && l.type == GRAUWOLF && distance < GRAUWOLF_HOLD_DISTANCE && l.ammo > 0){
                     moveSpeed = HOLD_SPEED;
                 }
                 moveSpeed *= speedFactor;
@@ -412,7 +413,7 @@ public class Legions {
                     shoot(l);
                     l.ammo--;
                     l.fireTimer = FIRE_DELAY[l.type];
-                }else if(!playerTrenched) {
+                }else if(l.seePlayer) {
                     shoot(l);
                     l.ammo--;
                     l.fireTimer = FIRE_DELAY[l.type];

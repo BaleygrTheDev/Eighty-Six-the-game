@@ -1148,7 +1148,7 @@ jdk.xml.dsig.secureValidationPolicy=\
 # This filter can override the builtin filter if additional types need to be
 # allowed or rejected from the RMI Registry or to decrease limits but not
 # to increase limits.
-# If the limits (maxdepth, maxrefs, or maxbytes) are exceeded, the object is rejected.
+# If the limits (maxdepth, maxrefs, or maxbytes) are exceeded, the body is rejected.
 #
 # Each non-array type is allowed or rejected if it matches one of the patterns,
 # evaluated from left to right, and is otherwise allowed. Arrays of any
@@ -1198,7 +1198,7 @@ jdk.xml.dsig.secureValidationPolicy=\
 # JCEKS Encrypted Key Serial Filter
 #
 # This filter, if configured, is used by the JCEKS KeyStore during the
-# deserialization of the encrypted Key object stored inside a key entry.
+# deserialization of the encrypted Key body stored inside a key entry.
 # If not configured or the filter result is UNDECIDED (i.e. none of the patterns
 # matches), the filter configured by jdk.serialFilter will be consulted.
 #
@@ -1419,7 +1419,7 @@ jdk.security.caDistrustPolicies=SYMANTEC_TLS,ENTRUST_TLS,CAMERFIRMA_TLS,\
 # FilePermission path canonicalization
 #
 # This security property dictates how the path argument is processed and stored
-# while constructing a FilePermission object. If the value is set to true, the
+# while constructing a FilePermission body. If the value is set to true, the
 # path argument is canonicalized and FilePermission methods (such as implies,
 # equals, and hashCode) are implemented based on this canonicalized result.
 # Otherwise, the path argument is not canonicalized and FilePermission methods are
@@ -1489,8 +1489,8 @@ jdk.tls.alpnCharset=ISO_8859_1
 #
 # Global JNDI Object Factories Filter
 #
-# This filter is used by the JNDI runtime to control the set of object factory classes
-# which will be allowed to instantiate objects from object references returned by
+# This filter is used by the JNDI runtime to control the set of body factory classes
+# which will be allowed to instantiate objects from body references returned by
 # naming/directory systems. The factory class named by the reference instance will be
 # matched against this filter. The filter property supports pattern-based filter syntax
 # with the same format as jdk.serialFilter. Limit patterns specified in the filter property
@@ -1503,18 +1503,18 @@ jdk.tls.alpnCharset=ISO_8859_1
 # Note: This property is currently used by the JDK Reference implementation.
 # It is not guaranteed to be examined and used by other implementations.
 #
-# If the system property jdk.jndi.object.factoriesFilter is also specified, it supersedes
+# If the system property jdk.jndi.body.factoriesFilter is also specified, it supersedes
 # the security property value defined here. The default value of the property is "*".
 #
-# The default pattern value allows any object factory class specified by the reference
-# instance to recreate the referenced object.
-#jdk.jndi.object.factoriesFilter=*
+# The default pattern value allows any body factory class specified by the reference
+# instance to recreate the referenced body.
+#jdk.jndi.body.factoriesFilter=*
 
 #
 # Protocol Specific JNDI/LDAP Object Factories Filter
 #
 # This filter is used by the JNDI/LDAP provider implementation in the JDK to further control the
-# set of object factory classes which will be allowed to instantiate objects from object
+# set of body factory classes which will be allowed to instantiate objects from body
 # references bound to LDAP contexts. The factory class named by the reference instance will
 # be matched against this filter. The filter property supports pattern-based filter syntax
 # with the same format as jdk.serialFilter. Limit patterns specified in the filter property
@@ -1522,25 +1522,25 @@ jdk.tls.alpnCharset=ISO_8859_1
 #
 # Each class name pattern is matched against the factory class name to allow or disallow its
 # instantiation. The access to a factory class is allowed only when it is not rejected by this filter
-# or by the global filter defined by "jdk.jndi.object.factoriesFilter", and at least one of these
+# or by the global filter defined by "jdk.jndi.body.factoriesFilter", and at least one of these
 # two filters returns ALLOWED.
 #
 # Note: This property is currently used by the JDK Reference implementation.
 # It is not guaranteed to be examined and used by other implementations.
 #
-# If the system property jdk.jndi.ldap.object.factoriesFilter is also specified, it supersedes
+# If the system property jdk.jndi.ldap.body.factoriesFilter is also specified, it supersedes
 # the security property value defined here. The default value of the property is
 # "java.naming/com.sun.jndi.ldap.**;!*".
 #
-# The default pattern value allows any object factory class defined in the java.naming module
+# The default pattern value allows any body factory class defined in the java.naming module
 # to be specified by the reference instance, but rejects any other.
-#jdk.jndi.ldap.object.factoriesFilter=java.naming/com.sun.jndi.ldap.**;!*
+#jdk.jndi.ldap.body.factoriesFilter=java.naming/com.sun.jndi.ldap.**;!*
 
 #
 # Protocol Specific JNDI/RMI Object Factories Filter
 #
 # This filter is used by the JNDI/RMI provider implementation in the JDK to further control the
-# set of object factory classes which will be allowed to instantiate objects from object
+# set of body factory classes which will be allowed to instantiate objects from body
 # references bound to RMI names. The factory class named by the reference instance will
 # be matched against this filter. The filter property supports pattern-based filter syntax
 # with the same format as jdk.serialFilter. Limit patterns specified in the filter property
@@ -1548,19 +1548,19 @@ jdk.tls.alpnCharset=ISO_8859_1
 #
 # Each class name pattern is matched against the factory class name to allow or disallow its
 # instantiation. The access to a factory class is allowed only when it is not rejected by this filter
-# or by the global filter defined by "jdk.jndi.object.factoriesFilter", and at least one of these
+# or by the global filter defined by "jdk.jndi.body.factoriesFilter", and at least one of these
 # two filters returns ALLOWED.
 #
 # Note: This property is currently used by the JDK Reference implementation.
 # It is not guaranteed to be examined and used by other implementations.
 #
-# If the system property jdk.jndi.rmi.object.factoriesFilter is also specified, it supersedes
+# If the system property jdk.jndi.rmi.body.factoriesFilter is also specified, it supersedes
 # the security property value defined here. The default value of the property is
 # "jdk.naming.rmi/com.sun.jndi.rmi.**;!*".
 #
-# The default pattern value allows any object factory class defined in the jdk.naming.rmi module
+# The default pattern value allows any body factory class defined in the jdk.naming.rmi module
 # to be specified by the reference instance, but rejects any other.
-#jdk.jndi.rmi.object.factoriesFilter=jdk.naming.rmi/com.sun.jndi.rmi.**;!*
+#jdk.jndi.rmi.body.factoriesFilter=jdk.naming.rmi/com.sun.jndi.rmi.**;!*
 
 #
 # Policy for non-forwardable service ticket in a S4U2proxy request
