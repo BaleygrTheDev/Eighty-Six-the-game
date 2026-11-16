@@ -179,7 +179,7 @@ public class FS {
         shot.removeIf(b -> resolveHit(b, legion));
     }
 
-    public void hitCarcas(double dt, Obstacles obstacle) { shot.removeIf(b -> obstacle.colision(dt, b, false, BULLET_SPEED[b.type])); }
+    public void hitCarcas(Obstacles obstacle) { shot.removeIf(b -> b.colision( obstacle.getCarcas())); }
 
     /** @return true, jeśli pocisk został zużyty i trzeba go usunąć. */
 

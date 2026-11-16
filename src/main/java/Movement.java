@@ -46,9 +46,9 @@ public class Movement {
         this.mouseY = mouseY;
     }
 
-    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles){
+    public void update(double dt, Feldres player, Cam cam, Obstacles obstacles, Legions legion){
         updatePlayerAngle(dt, player, cam);
-        updatePlayerPosition(dt, player, obstacles);
+        updatePlayerPosition(dt, player, obstacles, legion);
     }
 
     public void reset() {
@@ -79,7 +79,7 @@ public class Movement {
         aimX = graczX + Math.cos(player.angle) * distance;
         aimY = graczY + Math.sin(player.angle) * distance;
     }
-    public void updatePlayerPosition(double dt, Feldres player, Obstacles obstacles){
+    public void updatePlayerPosition(double dt, Feldres player, Obstacles obstacles, Legions legion){
         double kierunekX = 0;
         double kierunekY = 0;
 
@@ -129,6 +129,7 @@ public class Movement {
         }
         boostSpeed = 1;
         dashCooldown = Math.max(0, dashCooldown - dt);
-        obstacles.colision(dt, player, dash, ESTG.PLAYER_SPEED);
+        player.colision(dt, dash, ESTG.PLAYER_SPEED, obstacles.getCarcas());
+        player.colision(dt, dash, ESTG.PLAYER_SPEED, legion.getEnemies());
     }
 }

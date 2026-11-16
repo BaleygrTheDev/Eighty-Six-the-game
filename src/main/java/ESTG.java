@@ -170,8 +170,8 @@ public class ESTG extends Application {
 
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0, inTrench);
         fs.hitEnemies(legion.getEnemies());
-        fs.hitCarcas(dt, obstacles);
-        for(int i = 1; i < obstacles.getCarcas().size(); i++){ obstacles.colision(dt, obstacles.getCarcas().get(i-1), false, 0); }
+        fs.hitCarcas(obstacles);
+        for(int i = 1; i < obstacles.getCarcas().size(); i++){ obstacles.getCarcas().get(i).colision(dt, false, 0, obstacles.getCarcas()); }
         legion.removeDead(explosions, obstacles);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
@@ -193,7 +193,7 @@ public class ESTG extends Application {
         fidoUpdate(dt);
         movement.setMouse(myszX, myszY);
         movement.setDoWymiany(doWymiany);
-        movement.update(dt, player, cam, obstacles);
+        movement.update(dt, player, cam, obstacles, legion);
         aktualizujAnimacje(dt, movement.getLength());
         legion.update(dt, player, cam, obstacles, inTrench);
         explosions.update(dt);

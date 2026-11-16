@@ -39,7 +39,6 @@ public class Obstacles {
     private List<Obstacle> trench = new ArrayList<>();
 
     public List<Obstacle> getCarcas() { return carcas; }
-    public List<Obstacle> getTrenches() { return trench; }
 
     public void delete(){
         carcas.clear();
@@ -103,35 +102,6 @@ public class Obstacles {
                 }
             }
         }
-    }
-    public boolean colision(double dt, Body body, boolean dash, double objSpeed){
-        boolean slowed = false;
-        boolean colided = false;
-
-        for (Obstacle o : carcas) {
-            double px = body.x + body.w / 2, py = body.y + body.h / 2;
-            double ox = o.x + o.w / 2, oy = o.y + o.h / 2;
-            double dx = ox - px, dy = oy - py;
-            double distance = Math.hypot(dx, dy);
-            double minDistance = ((body.w + body.h) / 2 + (o.w + o.h) / 2) / 2;
-            if (distance < minDistance && distance > 0.0001 && !dash) {
-                slowed = true;
-                colided = true;
-                double overLap = minDistance - distance;
-                double separation = overLap * (1 - Math.exp(-SEPARATION_RATE * dt));
-                double shift = separation / 2;
-                body.x -= dx / distance * shift ;
-                body.y -= dy / distance * shift ;
-                o.x += dx / distance * shift ;
-                o.y += dy / distance * shift ;
-            }
-        }
-        if(slowed){
-            body.speed = objSpeed * SLOW;
-        }else if(objSpeed != 0){
-            body.speed = objSpeed;
-        }
-        return colided;
     }
     public void expiration(){
         carcas.removeIf(c -> c.spawnRound <= round - 2);

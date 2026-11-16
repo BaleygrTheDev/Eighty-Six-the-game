@@ -306,7 +306,7 @@ public class Legions {
             double distance = Math.hypot(dx, dy);
             if (distance < 0.0001) continue;
 
-            l.seePlayer = !playerTrenched || distance < 400;
+            l.seePlayer = !playerTrenched || distance < 300;
 
             l.concussed = l.concussionTimer > 0;
             l.concussionTimer = Math.max(0, l.concussionTimer - dt);
@@ -425,22 +425,8 @@ public class Legions {
         // separation so enemies don't stack on one point
         for (int i = 0; i < legion.size(); i++) {
             Legion a = legion.get(i);
-            for (int j = i + 1; j < legion.size(); j++) {
-                Legion b = legion.get(j);
-                double ax = a.x + a.w / 2, ay = a.y + a.h / 2;
-                double bx = b.x + b.w / 2, by = b.y + b.h / 2;
-                double dx = bx - ax, dy = by - ay;
-                double distance = Math.hypot(dx, dy);
-                double minDistance = (a.w + b.w) / 3;
-                if (distance < minDistance && distance > 0.0001) {
-                    double push = (minDistance - distance) / 2;
-                    a.x -= dx / distance * push;
-                    a.y -= dy / distance * push;
-                    b.x += dx / distance * push;
-                    b.y += dy / distance * push;
-                }
-            }
-            obstacles.colision(dt, a, false, SPEED[a.type]);
+            a.colision(dt, false, SPEED[a.type], legion);
+            a.colision(dt, false, SPEED[a.type], obstacles.getCarcas());
         }
     }
     private void shoot(Legion l) {
@@ -500,7 +486,7 @@ public class Legions {
            b.move(dt);
            return cam.outside(b.x, b.y, SHOT_CULL_MARGIN);
         });
-        shots.removeIf(b -> obstacle.colision(dt, b, false, 0));
+        shots.removeIf(b -> b.colision(obstacle.getCarcas()));
     }
 
     public void updateRockets(double dt, Cam cam, Feldres player){
