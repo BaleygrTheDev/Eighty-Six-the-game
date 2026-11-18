@@ -32,7 +32,6 @@ public class Legions {
     static final double RAM_DAMAGE = 15;                    // obrażenia wroga przy zderzeniu z graczem
     static final double RAM_COOLDOWN = 1;
     static final int[] AMMO = {Integer.MAX_VALUE, 6, Integer.MAX_VALUE};
-    private double ramTimer = 0;
     private double lastSeenX, lastSeenY;     // gdzie ostatnio widziano gracza (poza okopem)
 
     static final double AVOID_RANGE = 250;    // od jakiej odległości od powierzchni przeszkody wróg zaczyna ją omijać
@@ -71,6 +70,7 @@ public class Legions {
         double wanderX, wanderY;     // aktualny punkt patrolu
         double wanderTimer;          // ile sekund do wylosowania nowego (<= 0 oznacza: wylosuj teraz)
         boolean seePlayer;
+        private double ramTimer = 0;
 
         Legion(int type, double x, double y) {
             super(x, y, SIZE_W[type], SIZE_H[type], HP[type],0, SPEED[type], TURN_RATE[type], 0, 0);
@@ -117,7 +117,6 @@ public class Legions {
         round = 0;
         difficulty = 5;
         breakTimer = 0;
-        ramTimer = 0;
     }
 
     public void update(double dt, Feldres player, Cam cam, Obstacles obstacles, boolean playerTrenched) {
@@ -528,13 +527,12 @@ public class Legions {
     }
 
      private void legionDamage(Feldres player,double dt){
-        ramTimer = Math.max(0, ramTimer - dt);
-
         for (Legion l : legion) {
+            l.ramTimer = Math.max(0, l.ramTimer - dt);
             boolean touching = l.koliduje(player);
-            if (touching && !l.touching && ramTimer <= 0) {
+            if (touching && !l.touching && l.ramTimer <= 0) {
                 l.hp -= RAM_DAMAGE;
-                ramTimer = RAM_COOLDOWN;
+                l.ramTimer = RAM_COOLDOWN;
             }
             l.touching = touching;
         }

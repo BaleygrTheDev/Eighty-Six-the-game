@@ -45,7 +45,7 @@ public class FS {
     private int apfsds = MAG;
 
 
-    // ---------- odczyt dla HUD-u i Fido ----------
+    // ---------- odczyt dla HUD-u i FidoMovement ----------
     public int getHeat() {
         return heat;
     }

@@ -1,6 +1,5 @@
 import javafx.scene.input.KeyCode;
 
-import java.util.List;
 import java.util.Set;
 
 public class Movement {
@@ -15,6 +14,7 @@ public class Movement {
     private boolean dashHolding;
 
     private double length;
+    final private double FRAME_TIME = 0.12;
     private double dashTime = 0.10;
     private double dashSpeed = 1500;
     private double dashTimer = 0;
@@ -34,9 +34,6 @@ public class Movement {
     public double getAimX(){ return this.aimX; }
     public double getAimY(){ return this.aimY; }
 
-    public double getDashCooldown() {
-        return dashCooldown;
-    }
     public double getEnergy(){ return this.energy; }
     public double getMAX_ENERGY(){ return this.MAX_ENERGY; }
 
@@ -131,5 +128,20 @@ public class Movement {
         dashCooldown = Math.max(0, dashCooldown - dt);
         player.colision(dt, dash, ESTG.PLAYER_SPEED, obstacles.getCarcas());
         player.colision(dt, dash, ESTG.PLAYER_SPEED, legion.getEnemies());
+    }
+    public void updateAnimation(double dt, double time, Feldres player) {
+        boolean chodzi = (time > 0 && doWymiany <= 0);
+
+        if (chodzi) {
+            player.animTimer += dt;
+
+            if (player.animTimer >= FRAME_TIME) {
+                player.frame = (player.frame + 1) % 4;
+                player.animTimer = 0;
+            }
+        } else {
+            player.frame = 1;
+            player.animTimer = 0;
+        }
     }
 }

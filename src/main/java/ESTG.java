@@ -32,6 +32,7 @@ public class ESTG extends Application {
     private final Legions legion = new Legions();
     private FS fs = new FS();
     private final Movement movement = new Movement(myszX, myszY, klawisze);
+    private final FidoMovement fidoMovement = new FidoMovement(WIDTH, HEIGHT, fs);
     private final Explosions explosions = new Explosions();
     private final Obstacles obstacles = new Obstacles(rng);
 
@@ -50,7 +51,6 @@ public class ESTG extends Application {
     private final Image aim = load("/jugger aim.png");
     private final Image teksturaGracza = load("/jugger walker.png");
     private final Image teksturaFido = load("/fido walk.png");
-    private final double czasKlatki = 0.12;
     private final Image bullet = load("/HEAT bulet.png");
     private final Image trench = load("/trench.png");
     private final Image[] tiles = {
@@ -76,76 +76,19 @@ public class ESTG extends Application {
 
     private void newGame() {
         player = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 50, 121, 75, PLAYER_MAX_HP, 0, PLAYER_SPEED, 250, 0, 0);
-        fido = new Feldres(WIDTH / 2 - 25, HEIGHT / 2 - 300, 60, 50, 0, 0, 550, 120, 0, 0);
+        fidoMovement.spawnFido();
+        fido = fidoMovement.getFido();
         fs.clearB();
         legion.reset();
         player.hp = PLAYER_MAX_HP;
         hurtTimer = 0;
         czas = 0;
         doWymiany = 0;
-        player.frame = 0;
-        fido.frame = 0;
         rng.newSeed();
         cam.drag(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY);
         movement.reset();
         explosions.clear();
         obstacles.delete();
-    }
-
-    private void fidoUpdate(double dt) {
-        double graczX = player.x + player.w / 2;
-        double graczy = player.y + player.h / 2;
-
-        double fidoX = fido.x + fido.w / 2;
-        double fidoy = fido.y + fido.h / 2;
-
-        double dx = graczX - fidoX;
-        double dy = graczy - fidoy;
-        double odleglosc = Math.sqrt(dx * dx + dy * dy);
-        if (odleglosc < 0.0001) return;
-        int dir = 0;
-
-        if (!fido.koliduje(player)) {
-            if (fs.isEmpty()) {
-                dir = 1;
-            } else if (odleglosc < 3000) {
-                dir = -1;
-            } else {
-                dir = 1;
-            }
-        }else if(doWymiany <= 0 && fs.isFull()){
-            dir = -1;
-        }
-        if (dir != 0) {
-            fido.x += (dx / odleglosc) * dir * fido.speed * dt;
-            fido.y += (dy / odleglosc) * dir * fido.speed * dt;
-            fido.angle = Math.atan2(dir * (dy / odleglosc), dir * (dx / odleglosc));
-
-           fido.animTimer += dt;
-            if (fido.animTimer >= czasKlatki) {
-                fido.frame = (fido.frame + 1) % 4;
-                fido.animTimer = 0;
-            }
-        }else {
-            fido.frame = 0;           // stoi, więc klatka stojąca, bez animacji chodzenia
-            fido.animTimer = 0;
-        }
-    }
-
-    private void aktualizujAnimacje(double dt, double dlugosc) {
-        boolean chodzi = (dlugosc > 0 && doWymiany <= 0);
-
-        if (chodzi) {
-            player.animTimer += dt;
-
-            if (player.animTimer >= czasKlatki) {
-                player.frame = (player.frame + 1) % 4;
-                player.animTimer = 0;
-            }
-        } else {
-            player.frame = 1;
-            player.animTimer = 0;
-        }
     }
 
     private void update(double dt) {
@@ -171,7 +114,7 @@ public class ESTG extends Application {
         fs.shooting(dt, player, player.angle, cam, doWymiany > 0, inTrench);
         fs.hitEnemies(legion.getEnemies());
         fs.hitCarcas(obstacles);
-        for(int i = 1; i < obstacles.getCarcas().size(); i++){ obstacles.getCarcas().get(i).colision(dt, false, 0, obstacles.getCarcas()); }
+        for(int i = 0; i < obstacles.getCarcas().size(); i++){ obstacles.getCarcas().get(i).colision(dt, false, 0, obstacles.getCarcas()); }
         legion.removeDead(explosions, obstacles);
 
         hurtTimer = Math.max(0, hurtTimer - dt);
@@ -190,11 +133,13 @@ public class ESTG extends Application {
         }
 
         cam.updateCam(player.x + player.w / 2, player.y + player.h / 2, myszX, myszY, dt);
-        fidoUpdate(dt);
+        fido = fidoMovement.getFido();
+        fidoMovement.setTilSwap(doWymiany);
+        fidoMovement.fidoUpdate(dt, player);
         movement.setMouse(myszX, myszY);
         movement.setDoWymiany(doWymiany);
         movement.update(dt, player, cam, obstacles, legion);
-        aktualizujAnimacje(dt, movement.getLength());
+        movement.updateAnimation(dt, movement.getLength(), player);
         legion.update(dt, player, cam, obstacles, inTrench);
         explosions.update(dt);
         obstacles.setRound(legion.getRound());
